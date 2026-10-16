@@ -1,4 +1,5 @@
-import type { Annotation, DatasetKind, IoKind, ProvenanceIndex } from '../../arc/provenance/types'
+import type { ArcadeIndex } from '../../arc/provenance/input'
+import type { Annotation, DatasetKind, IoKind } from '../../arc/provenance/types'
 
 export interface RunNode {
   id: string
@@ -36,8 +37,8 @@ export interface StartCandidate {
 }
 
 // Sorted by path length, longest first.
-export type ListStartCandidates = (index: ProvenanceIndex) => StartCandidate[]
+export type ListStartCandidates = (index: ArcadeIndex) => StartCandidate[]
 // Null when the ARC has no path at all.
-export type PlanRun = (index: ProvenanceIndex, arcTitle: string, seed: string) => RunPlan | null
+export type PlanRun = (index: ArcadeIndex, arcTitle: string, seed: string) => RunPlan | null
 export type SegmentQuality = (annotations: Annotation[]) => number
 export type TelegraphMs = (quality: number) => number

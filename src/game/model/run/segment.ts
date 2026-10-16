@@ -1,4 +1,5 @@
-import type { Annotation, ProvenanceIndex, ProvenanceRow } from '../../../arc/provenance/types'
+import type { ArcadeIndex, ArcadeRow } from '../../../arc/provenance/input'
+import type { Annotation } from '../../../arc/provenance/types'
 import type { SegmentQuality, TelegraphMs } from '../../contracts/run'
 import { compareText } from './paths'
 
@@ -21,11 +22,11 @@ function annotationKey({ name, value, unit, accession, category }: Annotation): 
 // links the two nodes, deduplicated and sorted. Undefined when no row links them. The row is
 // the first one that does, and it supplies the process and dataset of the segment.
 export function segmentAnnotations(
-  index: ProvenanceIndex,
+  index: ArcadeIndex,
   fromId: string,
   toId: string,
-): { annotations: Annotation[]; row: ProvenanceRow } | undefined {
-  const rows: ProvenanceRow[] = []
+): { annotations: Annotation[]; row: ArcadeRow } | undefined {
+  const rows: ArcadeRow[] = []
   for (const rowId of index.consumedBy.get(fromId) ?? []) {
     const row = index.rowById.get(rowId)
     if (row && row.inputs.includes(fromId) && row.outputs.includes(toId)) rows.push(row)

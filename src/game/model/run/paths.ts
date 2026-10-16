@@ -1,5 +1,5 @@
 import type { StartCandidate } from '../../contracts/run'
-import type { ProvenanceIndex } from '../../../arc/provenance/types'
+import type { ArcadeIndex } from '../../../arc/provenance/input'
 
 export const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
@@ -7,7 +7,7 @@ export const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0
 // consuming rows. A step back to a node that is still being walked (a cycle) adds nothing.
 // Ignoring that step keeps the table consistent: every node with a positive length has an
 // output whose length is exactly one less, so a walk along the table always reaches 0.
-export function longestPaths(index: ProvenanceIndex): Map<string, number> {
+export function longestPaths(index: ArcadeIndex): Map<string, number> {
   const longest = new Map<string, number>()
   const visiting = new Set<string>()
 
@@ -35,7 +35,7 @@ export function longestPaths(index: ProvenanceIndex): Map<string, number> {
 
 // Inputs are the nodes no row produces. A node is still an input when every row that produces it
 // also takes it as input (a row from a node to itself).
-export function startCandidatesFrom(index: ProvenanceIndex, longest: Map<string, number>): StartCandidate[] {
+export function startCandidatesFrom(index: ArcadeIndex, longest: Map<string, number>): StartCandidate[] {
   const isInput = (id: string) =>
     (index.producedBy.get(id) ?? []).every((rowId) => index.rowById.get(rowId)?.inputs.includes(id))
   return index.nodes

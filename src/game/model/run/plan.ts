@@ -1,4 +1,4 @@
-import type { ProvenanceIndex } from '../../../arc/provenance/types'
+import type { ArcadeIndex } from '../../../arc/provenance/input'
 import { createRng } from '../../contracts/rng'
 import type { ListStartCandidates, PlanRun, RunNode, Segment } from '../../contracts/run'
 import { compareText, longestPaths, startCandidatesFrom, topCandidates } from './paths'
@@ -7,7 +7,7 @@ import { segmentAnnotations, segmentQuality, telegraphMs } from './segment'
 export const listStartCandidates: ListStartCandidates = (index) =>
   startCandidatesFrom(index, longestPaths(index))
 
-function runNode(index: ProvenanceIndex, id: string): RunNode {
+function runNode(index: ArcadeIndex, id: string): RunNode {
   const node = index.nodeById.get(id)
   return { id, kind: node?.kind ?? 'data', annotations: node?.annotations ?? [] }
 }
