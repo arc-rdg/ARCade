@@ -261,16 +261,18 @@ never together. Their stat parts go past the card limits on purpose.
 | In Vitro | melee +60% and +40% reach | shots -60% | scalpel, whip, hammer | wand, pipette, disc |
 | Heavy Metadata | heavy attacks +150% | light attacks -50% | Beaker Hammer, DOI Excalibur | light strings, Reproducibility |
 | Reviewer 2 | every 10th hit deals 10x | the first hit on each enemy deals 0 | fast hits (pipette, dual scalpels) | slow single hits |
-| Accept All Cookies | +2 max HP per kill for good | a 1 s cookie banner stun every 25 s | long runs, crowds | boss fights |
+| Accept All Cookies | +2 max HP per kill for good | a cookie banner every 25 s blocks your attacks until you click Accept all (it accepts itself after 8 s) | long runs, crowds | boss fights |
 | Infinite Scroll | dash cooldown x0.25, endless air dashes | attack speed -40% | mobility | damage per second |
 
 The stat parts apply with the augment (`applyCorrupted`). The damage factors run through the
 combat world's damage modifier, which now also gets the hit's tags and target
 (`outgoingFactor`, `incomingFactor`), and the rest lives in the loadout feature
 `phaser/player/weapons/corrupted.ts` (dash hits, the Data Lake heal, the chain and its cost, thorns,
-the cookie banner, the EULA), in the player (mirrored controls, stuns), the motor (`noJump`,
+the cookie banner state, the EULA), in the player (mirrored controls, stuns, blocked attacks), the motor (`noJump`,
 `infiniteAirDash`) and the run director (fragments, cookies). Cards an augment makes useless are not
 offered (`canApply`): no extra jumps or glide without a jump, no Quality Control under Rogue Admin.
+
+The banner is a HUD overlay (`CookieBannerPanel`) on the side the mage is not on, clear of the HUD bars and ability slots (`hudLayout.ts`). It blocks light, heavy and ability presses and swallows the mouse click that closes it. [Manage preferences] opens silly toggles and a second Accept all, Enter accepts, and pauses and overlays freeze its timer.
 
 No curse traps the mage. The slowest the augments make the mage is 0.7 times the run speed, which
 still clears the widest gap with the plain jump (a test checks it). Deprecated jump() takes every
@@ -329,8 +331,8 @@ Attacks during a dash, or up to 80 ms after it, play the dash light (no lock) or
 dash heavy. Attacks with up held play an overhead version, and ranged weapons keep aiming at the cursor.
 When an attack starts (every light, heavy and variant, and each hit of a combo), the mage turns to the
 side of the cursor if the pointer moved or a mouse button went down in the last 3 s (`AIM_RECENT_MS`;
-a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). That lets you swing one way
-while walking the other. Facing stays locked for the rest of the attack, and movement stays free.
+a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). So you can swing one way
+while walking the other. Facing stays locked for the rest of the attack and movement stays free.
 Lunges still push towards the facing. Without a recent pointer, and for the trader AI, which sends no
 aim, the held direction decides as before (`aimFacing` in `model/input/motor.ts`, `faceCursor` in
 `phaser/player/controls.ts`, called from the attack start in `Player.ts`). Abilities do not turn the mage.
@@ -360,7 +362,7 @@ Restore at full hp or spent) and starts no cooldown.
 | Rate Limit | uncommon | 12 s | a 5 x 4 tile zone ahead for 4 s: enemy shots at 30% speed, enemies at 70% (bosses 85%) |
 | Data Freeze | rare | 14 s | freezes enemies in a 6-tile cone for 1.5 s, bosses run at half speed instead |
 | Citation Needed | uncommon | 10 s | marks the nearest enemy ahead for 6 s, the mage's own hits on it deal 30% extra |
-| Firewall | rare | 16 s | blocks hits for 0.4 s and knocks enemies within 3 tiles away for 8 damage |
+| Firewall | rare | 14 s | a burst that shields you for 0.9 s (a flame aura shows) and knocks enemies within 3 tiles away for 20 damage |
 | Backup Restore | uncommon | once per boss | heals 50% of max hp, then waits for the next boss to fall |
 | Peer Pressure | legendary | 40 s | 40 damage to every enemy on screen, pushed away, enemy shots on screen vanish |
 | Preprint | legendary | 30 s | a 0.28 s super-dash of about 10 tiles that hits for 30, hits miss the mage for 0.45 s |
@@ -369,8 +371,7 @@ Pulls and pushes are knockback on hits of the loadout's stand-in attacker, so bo
 boss minions, which ignore knockback, never move. Only the Preprint dash is a hit of the mage
 itself, with damage bonuses and crits. The stand-in hits do not count as the mage's own (no Data
 Reuse heal, Reproducibility echo, Ontology tags, Peer Review or Citation bonus), and their `stagger`
-field keeps them from filling a boss stagger bar much (0.5 for the spin and Peer Pressure, 0 for
-Firewall). Freezes and slows go through `Combatant.applyStatus` with the rules in
+field keeps them from filling a boss stagger bar much (0.5 for the spin and Peer Pressure). Firewall's hit staggers mobs through the 'heavy' tag but adds nothing to a boss bar. Freezes and slows go through `Combatant.applyStatus` with the rules in
 `phaser/combat/status.ts`: a boss is never frozen, a freeze slows it to half speed, and it takes
 half of any slow. A slowed boss runs its whole clock slower (movement, windups, cooldowns), and its
 stagger bar and the heavy attack lock work as always. Mobs, minions, turrets and boss minions freeze
@@ -452,6 +453,8 @@ appear in the level-up provenance as "Bought · card (rarity) · price fragments
 A first stretch of about 8 mobs and its boss pay about 11 to 13 fragments, so a trader visit buys one
 or two commons or one uncommon, and a rare takes saving over two visits.
 
+Weapon cards that upgrade or replace the weapon in their slot carry the same marks on the level-up screen and in the FAIR trade store. An upgrade (the second copy of a tier 1 weapon) gets a pulsing outline, an UPGRADE ribbon and the tag "Becomes <tier 2 name>". A card for a different weapon gets "Replaces <current weapon>". A held legendary weapon gets no tag. In the store the tag sits under the card on one line and the price row moves down to make room. Both screens draw the marks through `cardMarks.ts`, and `relationLabel` in `weaponStats.ts` builds the tag text.
+
 The trader greets the player in the store's speech bubble, reacts to a purchase, a missing
 fragment or a useless card, and says goodbye in a bubble over the stall (`TRADER_LINES` in
 `model/progression/trader.ts`). Every line names a FAIR principle (Findable, Accessible,
@@ -501,13 +504,7 @@ Trader (unFAIR mode)". The exit portal shows "Can't leave mid-fight" and stays s
 death screen reads "Out-traded by the FAIR trader" with one of his lines ("Priced in. Paid in
 full.").
 
-When he falls he says a last line and fades. Then `RunDirector.lootTrader` applies his stall like
-purchases (no level, no XP, no hp gain): every card left in his stock, and one bonus, a legendary
-augment or legendary weapon the mage does not have and his stock did not hold this visit, sold or
-not. A card that no longer fits is skipped, and no bonus is given when nothing is left. The loot
-overlay (`TraderLootScene`) shows the cards, the bonus marked, until Walk on (Enter, after 600 ms).
-The level history and the run recap list them as "Looted from the FAIR trader". From then on he is
-gone for the run (`RunDirector.traderGone`, a new run brings him back): every later waystation has
+When he falls he says a last line and fades. Then `RunDirector.lootTrader` offers his remaining stock plus one legendary bonus the mage lacks, and the trader is gone for the run. Nothing applies yet. The loot screen (`TraderLootScene`) marks every card Taken. A click or the card's number key toggles one to Left, and a weapon card says what it replaces. While a card is Left he grumbles "Returns are not FAIR." Enter (after a 600 ms guard) or the button walks on, and `applyLootChoice` then applies only the Taken cards like purchases (no level, XP or heal). History and the run recap list only what was taken. A new run brings him back (`RunDirector.traderGone`): every later waystation has
 his closed stall, with a plank across, cobwebs, no goods, no prompt and a note pinned over it
 ("Closed. Not FAIR.", "Out of stock. Out of patience.").
 
