@@ -588,7 +588,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     mechanics.set(next.mechanics, next.theme)
     lastHeavy = false
     landFromHop()
-    scheduler.setAttacks(next.attacks, next.quality, TRANSITION_MS + OPENING_DELAY_MS / 2)
+    scheduler.setAttacks(next.attacks, next.quality, TRANSITION_MS + OPENING_DELAY_MS / 2, true)
     hurtFlashMs = 200
     for (const listener of [...listeners]) listener(phase)
   }

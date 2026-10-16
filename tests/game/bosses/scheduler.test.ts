@@ -216,6 +216,36 @@ describe('createScheduler', () => {
     expect(scheduler.next()?.id).toBe('l2')
   })
 
+  it('drops the attack a phase transition interrupted, so no punish window follows it', () => {
+    const scheduler = createScheduler(createRng('transition'))
+    const heavy = attack('h', true, 0)
+    scheduler.setAttacks([heavy], 1)
+    expect(scheduler.next()?.id).toBe('h')
+    scheduler.setAttacks([heavy, attack('l', false, 0)], 1, 100, true)
+    expect(scheduler.busy()).toBe(false)
+    scheduler.complete()
+    scheduler.tick(100)
+    expect(scheduler.next()).not.toBeNull()
+  })
+
+  it('counts the starvation cap by the weights, so a camped player does not wait for ever', () => {
+    const scheduler = createScheduler(createRng('camp'))
+    // The first light weighs nothing while the player camps, the second weighs something.
+    const weight = (a: SchedulableAttack) => (a.id === 'reach' ? 1 : 0)
+    scheduler.setAttacks([attack('floor', false, 0), attack('reach', false, 9000)], 0)
+    expect(scheduler.next(weight)?.id).toBe('reach')
+    scheduler.complete(0)
+    let waited = 0
+    let picked = scheduler.next(weight)
+    while (!picked && waited < 5000) {
+      scheduler.tick(10)
+      waited += 10
+      picked = scheduler.next(weight)
+    }
+    expect(picked?.id).toBe('reach')
+    expect(waited).toBeLessThanOrEqual(starveCapMs(0) + 10)
+  })
+
   it('picks the same sequence for the same seed', () => {
     expect(simulate(MIXED, 'same', 60_000)).toEqual(simulate(MIXED, 'same', 60_000))
   })

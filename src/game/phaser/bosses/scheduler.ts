@@ -41,7 +41,9 @@ export interface SchedulableAttack {
 
 export interface AttackScheduler<A extends SchedulableAttack> {
   // Replaces the attack list (a phase change). Cooldowns restart and nothing is picked for delayMs.
-  setAttacks(attacks: readonly A[], quality: number, delayMs?: number): void
+  // With dropRunning the attack in flight is dropped for good (a phase transition interrupted it)
+  // instead of being remembered for complete().
+  setAttacks(attacks: readonly A[], quality: number, delayMs?: number, dropRunning?: boolean): void
   // Advances cooldowns and the idle time. Call once per step.
   tick(dtMs: number): void
   // The next attack, or null while busy, idle or when every candidate is on cooldown. With
@@ -74,12 +76,15 @@ export function createScheduler<A extends SchedulableAttack>(rng: Rng): AttackSc
   // The attack that was running when setAttacks replaced the list.
   let orphan: A | null = null
   const eligible: number[] = []
+  // The weights next() last saw, so tick() counts starvation the way next() will decide it.
+  let lastWeightOf: ((attack: A) => number) | undefined
 
   function ready(i: number): boolean {
     return cooldowns[i] <= 0 && !(lastHeavy && attacks[i].heavy && hasLight)
   }
-  function anyEligible(): boolean {
-    for (let i = 0; i < attacks.length; i++) if (ready(i)) return true
+  // A ready attack that next() may pick: one that weighs something under the last weights.
+  function anyUsable(): boolean {
+    for (let i = 0; i < attacks.length; i++) if (ready(i) && (!lastWeightOf || lastWeightOf(attacks[i]) > 0)) return true
     return false
   }
   function gapAfter(attack: A): number {
@@ -93,8 +98,10 @@ export function createScheduler<A extends SchedulableAttack>(rng: Rng): AttackSc
   }
 
   return {
-    setAttacks(next, nextQuality, delayMs = 0) {
-      if (current >= 0) orphan = attacks[current]
+    setAttacks(next, nextQuality, delayMs = 0, dropRunning = false) {
+      if (current >= 0 && !dropRunning) orphan = attacks[current]
+      else if (dropRunning) orphan = null
+      lastWeightOf = undefined
       attacks = next
       cooldowns = next.map(() => 0)
       quality = clamp01(nextQuality)
@@ -109,10 +116,11 @@ export function createScheduler<A extends SchedulableAttack>(rng: Rng): AttackSc
       for (let i = 0; i < cooldowns.length; i++) {
         if (cooldowns[i] > 0) cooldowns[i] = Math.max(0, cooldowns[i] - dtMs)
       }
-      if (current < 0 && !orphan && idleMs <= 0 && !anyEligible()) starveMs += dtMs
+      if (current < 0 && !orphan && idleMs <= 0 && !anyUsable()) starveMs += dtMs
     },
     next(weightOf) {
       if (current >= 0 || idleMs > 0) return null
+      lastWeightOf = weightOf
       eligible.length = 0
       let total = 0
       for (let i = 0; i < attacks.length; i++) {
@@ -120,7 +128,9 @@ export function createScheduler<A extends SchedulableAttack>(rng: Rng): AttackSc
         eligible.push(i)
         if (weightOf) total += weightOf(attacks[i])
       }
-      if (eligible.length === 0) {
+      // Nothing ready, or only attacks of weight 0 while another attack of the list weighs more.
+      const unweighted = eligible.length === 0 || (weightOf !== undefined && total <= 0 && attacks.some((attack) => weightOf(attack) > 0))
+      if (unweighted) {
         if (!hasLight || starveMs < starveCapMs(quality)) return null
         // Starved: the light attack closest to ready goes without waiting for its cooldown.
         let pick = -1
@@ -144,7 +154,6 @@ export function createScheduler<A extends SchedulableAttack>(rng: Rng): AttackSc
         orphan = null
         return attacks[current]
       }
-      if (weightOf) for (const attack of attacks) if (weightOf(attack) > 0) return null
       return start(eligible[rng.int(0, eligible.length - 1)])
     },
     complete(idleOverrideMs) {
