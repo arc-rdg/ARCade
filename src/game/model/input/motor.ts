@@ -222,6 +222,19 @@ export function airHeavyRefused(state: MotorState, airborne: boolean, up: boolea
   return state.plungeUsed && airborne && !up && !dashing
 }
 
+// The pointer counts as in use for this long after it last moved or a mouse button went down.
+export const AIM_RECENT_MS = 3000
+// A cursor this close to the mage (world units, horizontally) does not turn it.
+export const AIM_DEAD_ZONE = 6
+
+// The side a new attack faces. With a recently used pointer that is the side of the cursor, so the
+// mage can swing one way while running the other. Otherwise, or with the cursor over the mage, the
+// current facing stays.
+export function aimFacing(cursorDx: number, pointerRecent: boolean, facing: 1 | -1): 1 | -1 {
+  if (!pointerRecent || Math.abs(cursorDx) <= AIM_DEAD_ZONE) return facing
+  return cursorDx > 0 ? 1 : -1
+}
+
 function approach(value: number, target: number, maxDelta: number): number {
   if (value < target) return Math.min(target, value + maxDelta)
   return Math.max(target, value - maxDelta)

@@ -327,6 +327,13 @@ jump high and each next one lower, 75%, 50%, 30% and 15% of it (`CHAIN_BOUNCE_HE
 and the bounces still give back no jump, air dash or coyote time.
 Attacks during a dash, or up to 80 ms after it, play the dash light (no lock) or the
 dash heavy. Attacks with up held play an overhead version, and ranged weapons keep aiming at the cursor.
+When an attack starts (every light, heavy and variant, and each hit of a combo), the mage turns to the
+side of the cursor if the pointer moved or a mouse button went down in the last 3 s (`AIM_RECENT_MS`;
+a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). That lets you swing one way
+while walking the other. Facing stays locked for the rest of the attack, and movement stays free.
+Lunges still push towards the facing. Without a recent pointer, and for the trader AI, which sends no
+aim, the held direction decides as before (`aimFacing` in `model/input/motor.ts`, `faceCursor` in
+`phaser/player/controls.ts`, called from the attack start in `Player.ts`). Abilities do not turn the mage.
 Each weapon only defines the variants of its card slot (light weapons: light, dash light, up light.
 Heavy weapons: heavy, air heavy, dash heavy, up heavy) and the staff has all of them.
 The mage holds the light weapon. A heavy move puts the heavy weapon in the hand from its startup to

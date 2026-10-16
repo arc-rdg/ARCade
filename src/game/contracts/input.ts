@@ -41,8 +41,9 @@ export interface InputFrame {
   // Went down since the previous step.
   pressed: ReadonlySet<Action>
   released: ReadonlySet<Action>
-  // Pointer position in world units, for ranged weapons.
-  aim: { x: number; y: number }
+  // Pointer position in world units, for ranged weapons and the side a new attack faces. `recent` is
+  // true while the pointer was used lately; a source without a pointer leaves it unset.
+  aim: { x: number; y: number; recent?: boolean }
 }
 
 // Falls back to the defaults on any storage error.

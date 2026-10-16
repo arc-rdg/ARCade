@@ -1,4 +1,4 @@
-import { airHeavyRefused, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
+import { aimFacing, airHeavyRefused, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { AttackInfo, AttackMachine, AttackStepEnv } from './attacks'
 
@@ -28,6 +28,10 @@ export interface Controls {
   // One fixed step of the attack machine and then the motor. `input` is what the motor reads, empty
   // while not controllable. Writes the motor state in place.
   step(input: MotorInput, presses: ControlPresses, controllable: boolean, attackSpeed: number, dtMs: number): void
+  // Turns the mage towards the cursor when an attack starts. `cursorDx` is the cursor x minus the
+  // mage x. Does nothing unless the pointer was used lately, so keyboard play and the trader AI keep
+  // the held direction.
+  faceCursor(cursorDx: number, pointerRecent: boolean): void
   // A dash variant took over the dash, so a later press plays the normal move again.
   endDashGrace(): void
 }
@@ -83,6 +87,9 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       stepMotor(motor, motorInput, motorEnv, dtMs, motor)
       if (motor.dashMs > 0) sinceDashMs = 0
       else sinceDashMs += dtMs
+    },
+    faceCursor(cursorDx, pointerRecent) {
+      motor.facing = aimFacing(cursorDx, pointerRecent, motor.facing)
     },
     endDashGrace() {
       sinceDashMs = Infinity

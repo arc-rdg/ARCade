@@ -14,6 +14,7 @@ import {
 } from '../../../src/game/model/input/motor'
 import type { MotorEnv } from '../../../src/game/model/input/motor'
 import { createAttackMachine } from '../../../src/game/phaser/player/attacks'
+import { AIM_DEAD_ZONE, aimFacing } from '../../../src/game/model/input/motor'
 import { createControls, lungeVelocity } from '../../../src/game/phaser/player/controls'
 
 function move(name: string, timing: Partial<AttackMove>): AttackMove {
@@ -39,6 +40,7 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
     speedScale: 1,
     actionsLocked: false,
   }
+  const cursor = { dx: 0, recent: false }
   const started: { name: string; variant: AttackVariant }[] = []
   const attacks = createAttackMachine({
     movesFor: (slot) => (slot === 'light' ? LIGHT : HEAVY),
@@ -48,6 +50,8 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
       return null
     },
     onStart(_slot, _index, m, variant) {
+      // What Player does first on an attack start.
+      controls.faceCursor(cursor.dx, cursor.recent)
       started.push({ name: m.name, variant })
       if (variant === 'dash') {
         motor.dashMs = 0
@@ -79,7 +83,7 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
     motor.vy = -JUMP_VELOCITY * plungeBounced(motor, chains)
     return true
   }
-  return { motor, motorEnv, attacks, started, step, wait, bounce, airborne: () => y < 0 }
+  return { motor, motorEnv, attacks, started, cursor, step, wait, bounce, airborne: () => y < 0 }
 }
 
 describe('createControls', () => {
@@ -347,5 +351,65 @@ describe('lungeVelocity', () => {
 
   it('keeps the air speed without a direction', () => {
     expect(lungeVelocity(140, 1, false, false, false, -90)).toBe(-90)
+  })
+})
+
+describe('facing the cursor', () => {
+  it('turns to a recently used cursor when an attack starts, while walking the other way', () => {
+    const { motor, cursor, step } = setup()
+    cursor.dx = 200
+    cursor.recent = true
+    step(['left'])
+    expect(motor.facing).toBe(-1)
+    step(['left', 'light'])
+    expect(motor.facing).toBe(1)
+    for (let n = 0; n < 6; n++) step(['left'])
+    expect(motor.facing).toBe(1)
+    expect(motor.vx).toBeLessThan(0)
+  })
+
+  it('keeps the held direction without a recent pointer', () => {
+    const { motor, cursor, step } = setup()
+    cursor.dx = 200
+    step(['left'])
+    step(['left', 'light'])
+    expect(motor.facing).toBe(-1)
+  })
+
+  it('keeps the facing for the whole attack even when the cursor crosses', () => {
+    const { motor, cursor, step } = setup()
+    cursor.dx = 200
+    cursor.recent = true
+    step(['light'])
+    cursor.dx = -200
+    for (let n = 0; n < 6; n++) step(['left'])
+    expect(motor.facing).toBe(1)
+  })
+
+  it('checks the cursor again on the next hit of a combo', () => {
+    const { motor, attacks, cursor, step, wait } = setup()
+    cursor.dx = 200
+    cursor.recent = true
+    step(['light'])
+    expect(motor.facing).toBe(1)
+    wait(150)
+    expect(attacks.canCancel()).toBe(false)
+    cursor.dx = -200
+    wait(60)
+    step(['light'])
+    expect(motor.facing).toBe(-1)
+  })
+})
+
+describe('aimFacing', () => {
+  it('follows the cursor side only with a recent pointer', () => {
+    expect(aimFacing(50, true, -1)).toBe(1)
+    expect(aimFacing(-50, true, 1)).toBe(-1)
+    expect(aimFacing(50, false, -1)).toBe(-1)
+  })
+
+  it('ignores a cursor inside the dead zone', () => {
+    expect(aimFacing(AIM_DEAD_ZONE, true, -1)).toBe(-1)
+    expect(aimFacing(-AIM_DEAD_ZONE, true, 1)).toBe(1)
   })
 })

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { ACTIONS } from '../../contracts/input'
 import type { Action, Bindings, InputFrame } from '../../contracts/input'
 import { bindingId } from '../../model/input'
+import { AIM_RECENT_MS } from '../../model/input/motor'
 
 export interface InputLayer {
   // Call once per fixed step. Edges collect between calls, so a tap shorter than a step still
@@ -29,8 +30,12 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
     held: new Set<Action>(),
     pressed: new Set<Action>(),
     released: new Set<Action>(),
-    aim: { x: 0, y: 0 },
+    aim: { x: 0, y: 0, recent: false },
   }
+  // When the pointer last moved or a mouse button went down, in scene time.
+  let pointerUsedAt = -Infinity
+  let lastPointerX = Number.NaN
+  let lastPointerY = Number.NaN
   const aimPoint = new Phaser.Math.Vector2()
 
   const mapBindings = (b: Bindings) => {
@@ -82,6 +87,7 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   const onMouseDown = (event: MouseEvent) => {
     // Phaser cancels mousedown, which stops the browser from focusing the canvas on click.
     canvas.focus()
+    pointerUsedAt = scene.time.now
     if (!enabled || event.button > 2) return
     press(`mouse:${event.button}`)
   }
@@ -121,6 +127,11 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
       scene.cameras.main.getWorldPoint(pointer.x, pointer.y, aimPoint)
       out.aim.x = aimPoint.x
       out.aim.y = aimPoint.y
+      // The first frame only records where the pointer rests.
+      if (!Number.isNaN(lastPointerX) && (pointer.x !== lastPointerX || pointer.y !== lastPointerY)) pointerUsedAt = scene.time.now
+      lastPointerX = pointer.x
+      lastPointerY = pointer.y
+      out.aim.recent = scene.time.now - pointerUsedAt <= AIM_RECENT_MS
       return out
     },
     setBindings(next) {

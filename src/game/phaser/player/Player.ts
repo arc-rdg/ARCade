@@ -127,7 +127,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   let blockMs = 0
   let dropMs = 0
   let standingOnOneWay = false
-  let aim = { x, y }
+  let aim: { x: number; y: number; recent?: boolean } = { x, y }
   let interceptor: ((hit: HitEvent) => boolean) | null = null
   const abilityHandlers: (AbilityHandler | null)[] = [null, null, null, null]
   const abilityCooldowns = [0, 0, 0, 0]
@@ -264,6 +264,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       return slot === 'heavy' ? airHeavyOf(set, tier) : null
     },
     onStart(slot, comboIndex, move, variant) {
+      controls.faceCursor(aim.x - body.center.x, aim.recent === true)
       attackHeld.clear()
       for (const action of held) attackHeld.add(action)
       momentumVx = 0
