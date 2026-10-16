@@ -683,3 +683,37 @@
     transition: none;
   }
 }
+
+/* A stacked start screen never scrolls as a page: the card gives way and only the bar list scrolls
+   inside it, so the buttons stay in view. The path shows at most two lines. */
+.arcade-root .arcade-screen[data-layout='stacked'] .arcade-content {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.arcade-root .arcade-screen[data-layout='stacked'] .arcade-card {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.arcade-root .arcade-screen[data-layout='stacked'] .arcade-bars {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: calc(48 * var(--u));
+}
+
+.arcade-root .arcade-screen[data-layout='stacked'] .arcade-bars-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.arcade-root .arcade-facts-path {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

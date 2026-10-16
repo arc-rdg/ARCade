@@ -111,10 +111,15 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     screenEl.dataset.layout = box?.layout ?? 'wide'
     let scale = box?.scale ?? 1
     screenEl.style.setProperty('--scale', String(scale))
-    // The start screen shrinks until its content fits the box, down to a floor. Below that it scrolls.
+    // The start screen shrinks until its content fits the box, down to a floor. Below that the bar list
+    // of a stacked screen scrolls inside its card, and a wide screen scrolls as a page.
     if (mode !== 'menu') return
-    for (let step = 0; step < 8 && scale > MIN_FIT_SCALE && screenEl.scrollHeight > screenEl.clientHeight; step++) {
-      scale = Math.max(MIN_FIT_SCALE, scale * (screenEl.clientHeight / screenEl.scrollHeight))
+    const bars = screenEl.querySelector<HTMLElement>('.arcade-bars-list')
+    const overflows = (el: HTMLElement) =>
+      el.scrollHeight > el.clientHeight || (bars !== null && bars.scrollHeight > bars.clientHeight + 1)
+    for (let step = 0; step < 8 && scale > MIN_FIT_SCALE && overflows(screenEl); step++) {
+      const ratio = screenEl.scrollHeight > screenEl.clientHeight ? screenEl.clientHeight / screenEl.scrollHeight : 0.9
+      scale = Math.max(MIN_FIT_SCALE, scale * ratio)
       screenEl.style.setProperty('--scale', String(scale))
     }
   }
@@ -186,6 +191,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       )
     }
 
+    const pathText = plan ? `${plan.nodes[0].id} → ${plan.nodes[plan.nodes.length - 1].id}` : ''
     const content = h(
       'div',
       { class: 'arcade-content' },
@@ -214,7 +220,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
             'dl',
             { class: 'arcade-facts' },
             h('dt', {}, 'Path'),
-            h('dd', {}, `${plan.nodes[0].id} → ${plan.nodes[plan.nodes.length - 1].id}`),
+            h('dd', { class: 'arcade-facts-path', title: pathText }, pathText),
             h('dt', {}, 'Steps'),
             h('dd', {}, String(plan.segments.length)),
             h('dt', {}, 'Annotations'),
