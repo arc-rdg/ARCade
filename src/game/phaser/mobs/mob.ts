@@ -739,10 +739,11 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   }
 
   function windupMs(): number {
-    if (isMelee(weapon.kind)) return MELEE[weapon.kind].windupMs + (spec.body === 'golem' ? GOLEM_WINDUP_MS : 0)
+    const golemMs = spec.body === 'golem' ? GOLEM_WINDUP_MS : 0
+    if (isMelee(weapon.kind)) return MELEE[weapon.kind].windupMs + golemMs
     const tune = RANGED[weapon.kind]
     // Wind-up plus flight to a player at point-blank must still leave time to react.
-    return rangedWindupMs(tune.windupMs, Math.hypot(st.dx, st.pcy - cy()), tune.speed)
+    return rangedWindupMs(tune.windupMs + golemMs, Math.hypot(st.dx, st.pcy - cy()), tune.speed)
   }
 
   function updateAttack(dt: number) {

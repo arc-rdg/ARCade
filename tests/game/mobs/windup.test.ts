@@ -59,6 +59,18 @@ describe('rangedWindupMs', () => {
     expect(rangedWindupMs(250, 400, 320)).toBe(250)
     expect(rangedWindupMs(300, 40, 0)).toBe(300)
   })
+
+  it('adds the golem bonus on top at every distance and still leaves the minimum lead', () => {
+    for (const kind of ['bow', 'wand'] as const) {
+      const { windupMs, speed } = RANGED[kind]
+      for (let distance = 40; distance <= 400; distance += 20) {
+        const golem = rangedWindupMs(windupMs + GOLEM_WINDUP_MS, distance, speed)
+        expect(golem).toBeGreaterThanOrEqual(rangedWindupMs(windupMs, distance, speed))
+        expect(golem + (distance / speed) * 1000).toBeGreaterThanOrEqual(RANGED_MIN_LEAD_MS - 1)
+      }
+    }
+    expect(rangedWindupMs(300 + GOLEM_WINDUP_MS, 40, 0)).toBe(350)
+  })
 })
 
 describe('contact damage and cooldown', () => {
