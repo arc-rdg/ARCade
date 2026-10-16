@@ -336,6 +336,8 @@ while walking the other. Facing stays locked for the rest of the attack and move
 Lunges still push towards the facing. Without a recent pointer, and for the trader AI, which sends no
 aim, the held direction decides as before (`aimFacing` in `model/input/motor.ts`, `faceCursor` in
 `phaser/player/controls.ts`, called from the attack start in `Player.ts`). Abilities do not turn the mage.
+The input layer reads the cursor from its own DOM listeners (`phaser/input/InputLayer.ts`), because
+Phaser's pointer skips mouse events that another script on the page already cancelled.
 Each weapon only defines the variants of its card slot (light weapons: light, dash light, up light.
 Heavy weapons: heavy, air heavy, dash heavy, up heavy) and the staff has all of them.
 The mage holds the light weapon. A heavy move puts the heavy weapon in the hand from its startup to

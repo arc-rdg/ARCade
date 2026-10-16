@@ -41,9 +41,29 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   }
   // When the pointer last moved or a mouse button went down, in scene time.
   let pointerUsedAt = -Infinity
-  let lastPointerX = Number.NaN
-  let lastPointerY = Number.NaN
+  // The cursor in canvas pixels, read from the DOM events. Phaser's pointer skips mouse events that
+  // another listener already cancelled (mouse gesture add-ons do this), so it can stop moving while
+  // clicks still reach this layer and start attacks.
+  let pointerKnown = false
+  let pointerX = 0
+  let pointerY = 0
   const aimPoint = new Phaser.Math.Vector2()
+
+  // Returns false when the event leaves the cursor where it was.
+  const trackPointer = (event: MouseEvent): boolean => {
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return false
+    const x = ((event.clientX - rect.left) * canvas.width) / rect.width
+    const y = ((event.clientY - rect.top) * canvas.height) / rect.height
+    if (pointerKnown && x === pointerX && y === pointerY) return false
+    pointerKnown = true
+    pointerX = x
+    pointerY = y
+    return true
+  }
+  const onPointerMove = (event: MouseEvent) => {
+    if (trackPointer(event)) pointerUsedAt = scene.time.now
+  }
 
   const mapBindings = (b: Bindings) => {
     actionsByInput = new Map()
@@ -94,7 +114,11 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   const onMouseDown = (event: MouseEvent) => {
     // Phaser cancels mousedown, which stops the browser from focusing the canvas on click.
     canvas.focus()
+    trackPointer(event)
     pointerUsedAt = scene.time.now
+    // Phaser cancels mousedown too, but only while nothing else did first. The right button must
+    // never reach the browser's menu or gestures.
+    if (event.button === 2) event.preventDefault()
     if (!enabled || event.button > 2) return
     const id = `mouse:${event.button}`
     // The cookie banner curses attacks only, so a mouse button bound to jump or dash keeps working.
@@ -113,9 +137,15 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   canvas.addEventListener('mousedown', onMouseDown)
   canvas.addEventListener('mouseup', onMouseUp)
   canvas.addEventListener('contextmenu', onContextMenu)
+  canvas.addEventListener('auxclick', onContextMenu)
   canvas.addEventListener('blur', releaseAll)
   window.addEventListener('mouseup', onMouseUp)
   window.addEventListener('blur', releaseAll)
+  // Capture phase on the window, so no listener on the way can hide a move. Both kinds, because a
+  // cancelled pointerdown stops the mouse events until the button is up, and the second of each
+  // pair finds the cursor where the first left it.
+  window.addEventListener('pointermove', onPointerMove, true)
+  window.addEventListener('mousemove', onPointerMove, true)
 
   return {
     frame() {
@@ -133,14 +163,11 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
       out.released = released
       if (!enabled) out.pressed.clear()
 
+      // Phaser's pointer only until the first DOM event, which has the real position.
       const pointer = scene.input.activePointer
-      scene.cameras.main.getWorldPoint(pointer.x, pointer.y, aimPoint)
+      scene.cameras.main.getWorldPoint(pointerKnown ? pointerX : pointer.x, pointerKnown ? pointerY : pointer.y, aimPoint)
       out.aim.x = aimPoint.x
       out.aim.y = aimPoint.y
-      // The first frame only records where the pointer rests.
-      if (!Number.isNaN(lastPointerX) && (pointer.x !== lastPointerX || pointer.y !== lastPointerY)) pointerUsedAt = scene.time.now
-      lastPointerX = pointer.x
-      lastPointerY = pointer.y
       out.aim.recent = scene.time.now - pointerUsedAt <= AIM_RECENT_MS
       return out
     },
@@ -161,6 +188,9 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
       canvas.removeEventListener('mousedown', onMouseDown)
       canvas.removeEventListener('mouseup', onMouseUp)
       canvas.removeEventListener('contextmenu', onContextMenu)
+      canvas.removeEventListener('auxclick', onContextMenu)
+      window.removeEventListener('pointermove', onPointerMove, true)
+      window.removeEventListener('mousemove', onPointerMove, true)
       canvas.removeEventListener('blur', releaseAll)
       window.removeEventListener('mouseup', onMouseUp)
       window.removeEventListener('blur', releaseAll)
