@@ -443,3 +443,58 @@ it('opens the pause when fullscreen is left during a run', async () => {
   expect(lastPause()).toEqual({ type: 'pause', paused: true })
   expect(screen.getByRole('button', { name: 'Click to play' })).toBeTruthy()
 })
+
+it('never creates the game when it is destroyed right after Start run', async () => {
+  mount()
+  click(await screen.findByRole('button', { name: 'Start run' }))
+  arcade?.destroy()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+
+  expect(createGame).not.toHaveBeenCalled()
+  expect(host.children).toHaveLength(0)
+})
+
+it('drops the pending game when the data is updated while the game module loads', async () => {
+  const running = mount()
+  click(await screen.findByRole('button', { name: 'Start run' }))
+  running.update({ title: 'Other ARC' })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+
+  expect(createGame).not.toHaveBeenCalled()
+  expect(screen.getByText('Quest: Other ARC')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Start run' })).toBeTruthy()
+})
+
+it('pauses on leaving fullscreen that the host entered itself, without the button', async () => {
+  stubFullscreen(true)
+  await startRun({ fullscreen: false })
+  fireEvent.focusIn(screen.getByRole('group', { name: 'ARCade game' }))
+  expect(lastPause()).toEqual({ type: 'pause', paused: false })
+
+  await arcade?.requestFullscreen()
+  expect(handle.focus).toHaveBeenCalled()
+  await document.exitFullscreen()
+
+  expect(lastPause()).toEqual({ type: 'pause', paused: true })
+  expect(screen.getByRole('button', { name: 'Click to play' })).toBeTruthy()
+})
+
+it('keeps the Click to play button node while it stays the same notice', async () => {
+  stubFullscreen(true)
+  await startRun()
+  const overlay = screen.getByRole('button', { name: 'Click to play' })
+
+  fireEvent.focusOut(screen.getByRole('group', { name: 'ARCade game' }))
+
+  expect(screen.getByRole('button', { name: 'Click to play' })).toBe(overlay)
+})
+
+it('keeps the keyboard focus on New path after it planned another path', async () => {
+  mount()
+  const button = await screen.findByRole('button', { name: 'New path' })
+  button.focus()
+
+  click(button)
+
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'New path' }))
+})

@@ -34,7 +34,7 @@ handle.update({ title: 'Other ARC', provenance: other }) // back to the start sc
 handle.destroy()
 ```
 
-The game fills its host element, so give the host a size. Options: `seed`, `autoStart`,
+The game fills its host element, so the host needs a definite size (for example a fixed height or `flex: 1`). The arcade root is a size container (`container-type: size`), so a host with `height: auto` collapses to nothing. Options: `seed`, `autoStart`,
 `bindingsStorageKey` (default `arc-mage.bindings.v1`, `null` keeps bindings for the session),
 `fullscreen` (default true), `onEvent`. `mountArcadeBanner(el)` mounts the compact tile banner.
 

@@ -52,6 +52,8 @@ const ACTION_NAMES: Record<Action, string> = {
 
 const BINDING_SLOTS = [0, 1]
 const FINE_POINTER = '(any-pointer: fine)'
+// The start screen does not shrink below this scale to fit its content.
+const MIN_FIT_SCALE = 0.55
 
 const newSeed = () => Math.floor(Math.random() * 36 ** 8).toString(36).padStart(8, '0')
 
@@ -107,13 +109,27 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   const applyBox = () => {
     if (!screenEl) return
     screenEl.dataset.layout = box?.layout ?? 'wide'
-    screenEl.style.setProperty('--scale', String(box?.scale ?? 1))
+    let scale = box?.scale ?? 1
+    screenEl.style.setProperty('--scale', String(scale))
+    // The start screen shrinks until its content fits the box, down to a floor. Below that it scrolls.
+    if (mode !== 'menu') return
+    for (let step = 0; step < 4 && scale > MIN_FIT_SCALE && screenEl.scrollHeight > screenEl.clientHeight; step++) {
+      scale = Math.max(MIN_FIT_SCALE, scale * (screenEl.clientHeight / screenEl.scrollHeight))
+      screenEl.style.setProperty('--scale', String(scale))
+    }
+  }
+
+  // Rebuilds the start screen and puts the keyboard focus back on the button that had it.
+  const rebuildMenu = () => {
+    const action = (doc.activeElement as HTMLElement | null)?.getAttribute?.('data-action')
+    renderMenu()
+    if (action) screenEl?.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus()
   }
 
   const show = (screen: HTMLElement) => {
     screenEl = screen
-    applyBox()
     stage.replaceChildren(screen)
+    applyBox()
   }
 
   const setMode = (next: Mode) => {
@@ -138,6 +154,9 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     sendToGame?.(next)
   }
 
+  const mageFigure = (src: string) =>
+    h('div', { class: 'arcade-figure' }, h('span', { class: 'arcade-hill', 'aria-hidden': 'true' }), h('img', { class: 'arcade-mage', src, alt: '' }), sparkle())
+
   function renderMenu() {
     const compact = box?.layout === 'compact'
     const totalAnnotations = plan?.segments.reduce((sum, segment) => sum + segment.annotations.length, 0) ?? 0
@@ -145,18 +164,18 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     const newPath = () => {
       seed = newSeed()
       plan = planRun(index, title, seed)
-      renderMenu()
+      rebuildMenu()
     }
-    const newPathButton = () => h('button', { type: 'button', class: 'arcade-btn', onclick: newPath }, 'New path')
+    const newPathButton = () => h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'new-path', onclick: newPath }, 'New path')
 
     let actions: HTMLElement
     if (fine) {
       actions = h(
         'div',
         { class: 'arcade-actions' },
-        h('button', { type: 'button', class: 'arcade-btn arcade-btn-start', onclick: () => setMode('playing') }, 'Start run'),
+        h('button', { type: 'button', class: 'arcade-btn arcade-btn-start', 'data-action': 'start', onclick: () => setMode('playing') }, 'Start run'),
         !compact && newPathButton(),
-        !compact && h('button', { type: 'button', class: 'arcade-btn', onclick: () => setMode('settings') }, 'Settings'),
+        !compact && h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'settings', onclick: () => setMode('settings') }, 'Settings'),
       )
     } else {
       actions = h(
@@ -222,7 +241,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
         'div',
         { class: 'arcade-screen' },
         scene(),
-        plan && mage && h('div', { class: 'arcade-figure' }, h('span', { class: 'arcade-hill', 'aria-hidden': 'true' }), h('img', { class: 'arcade-mage', src: mage, alt: '' }), sparkle()),
+        plan && mage && mageFigure(mage),
         content,
       ),
     )
@@ -317,7 +336,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       }
       const onMouseDown = (event: MouseEvent) => {
         if (assigned || event.button > 2) return
-        const button = event.target instanceof Element ? event.target.closest('button') : null
+        const button = (event.target as Element | null)?.closest?.('button') ?? null
         if (button && !button.hasAttribute('data-capturing')) {
           endCapture()
           return
@@ -408,7 +427,12 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     let stopListening: (() => void) | undefined
     let timer: ReturnType<typeof setTimeout> | undefined
 
+    let noticeKind = ''
     const showNotice = () => {
+      // A notice that stays the same keeps its node, so a press on it is not cut short.
+      const kind = failed ? 'failed' : !ready ? 'loading' : !isFocused ? 'overlay' : 'none'
+      if (kind === noticeKind) return
+      noticeKind = kind
       if (failed) {
         notices.replaceChildren(
           h(
@@ -468,7 +492,11 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     // Leaving fullscreen with Escape would also open the game's pause, so the game pauses at once.
     playing = {
       focus: claimFocus,
-      leftFullscreen: () => setFocused(false),
+      leftFullscreen: () => {
+        // The canvas keeps the focus when the browser leaves fullscreen, so the overlay would not get its click.
+        if (host.contains(doc.activeElement)) (doc.activeElement as HTMLElement).blur()
+        setFocused(false)
+      },
       resize: (width, height) => handle?.resize(width, height),
     }
     showNotice()
@@ -568,21 +596,26 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       else playing?.leftFullscreen()
     }
   }
+  // Also without the button: a host may call requestFullscreen() itself.
+  doc.addEventListener('fullscreenchange', onFullscreenChange)
   if (fullscreenButton) {
     syncFullscreenButton()
     root.setAttribute('data-fullscreen', '')
     root.append(fullscreenButton)
-    doc.addEventListener('fullscreenchange', onFullscreenChange)
   }
 
   const onPointerChange = () => {
-    if (mode === 'menu') renderMenu()
+    if (mode === 'menu') rebuildMenu()
   }
   pointerQuery.addEventListener('change', onPointerChange)
 
   const stopLoadingImage = loadTrimmedImage(mageUrl, (trimmed) => {
     mage = trimmed
-    if (mode === 'menu') renderMenu()
+    // The picture joins the start screen in place, so nothing the player is pressing is rebuilt.
+    if (mode === 'menu' && plan && screenEl && !screenEl.querySelector('.arcade-figure')) {
+      screenEl.insertBefore(mageFigure(trimmed), screenEl.querySelector('.arcade-content'))
+      applyBox()
+    }
   })
 
   setMode(options.autoStart && canPlay() ? 'playing' : 'menu')
@@ -591,7 +624,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     const next = boxFor(width, height, em)
     const compactChanged = (box?.layout === 'compact') !== (next.layout === 'compact')
     box = next
-    if (mode === 'menu' && compactChanged) renderMenu()
+    if (mode === 'menu' && compactChanged) rebuildMenu()
     else applyBox()
     playing?.resize(width, height)
   })
