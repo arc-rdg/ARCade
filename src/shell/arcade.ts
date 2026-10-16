@@ -477,7 +477,15 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     import('../game/phaser/createGame').then(
       ({ createGame }) => {
         if (cancelled) return
-        const game = createGame(host, { bindings })
+        let game: GameHandle
+        try {
+          game = createGame(host, { bindings })
+        } catch {
+          // No WebGL or a lost context: the player can go back to the start screen.
+          failed = true
+          showNotice()
+          return
+        }
         handle = game
         sendToGame = (next) => game.send({ type: 'setBindings', bindings: next })
         // The Phaser scenes draw the death and victory screens, so those events need no reaction here.
