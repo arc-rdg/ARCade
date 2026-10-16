@@ -533,6 +533,22 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     let dir: -1 | 1
     if (chasing) {
       faceTarget()
+      if (backsOff) {
+        backingOff = wantsToBackOff(Math.abs(st.dx), backingOff)
+        if (backingOff) {
+          // Hops away from the player and keeps facing them. A wall or a ledge behind stops it.
+          const away = st.dx >= 0 ? -1 : 1
+          if (retreatDirection(st.dx, away > 0 ? wallRight : wallLeft, stopsAtLedge(away, false)) === 0) {
+            st.hopMs = 200
+            return
+          }
+          const vx = away * speed * 2.4 * RANGED_BACKOFF_SPEED
+          body.setVelocity(vx, -HOP_SPEED)
+          st.targetVx = vx
+          st.hopMs = 650
+          return
+        }
+      }
       if (holdsGround()) {
         st.hopMs = 200
         return
