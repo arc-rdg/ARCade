@@ -10,20 +10,28 @@ import { drawScribbleBox } from './panelFrame'
 import { addButton, addText, type Button, onCanvasKey, overlayView } from './ui'
 
 // What the beaten FAIR trader left: every card of his stock, and the bonus, a legendary he never
-// sold. The cards are applied already, like purchases. The overlay shows them until the player
-// walks on, with Enter or the button after a short guard, so a key still going from the fight
-// does not close it unseen.
+// sold. All start marked Taken; a click or the card's number key toggles one to Left. Enter or the
+// button walks on after a short guard, so a key still going from the fight does not close it
+// unseen, and the Taken cards apply then. The trader grumbles while a card is Left.
 const INTRO_MS = 300
 const GUARD_MS = 600
 const NAVY = cssColor(PALETTE.navy)
 const CONTINUE_KEYS = new Set(['Enter', 'NumpadEnter', 'Space'])
 const GAP = 8
+const GRUMBLE = 'Returns are not FAIR.'
+const LABEL_H = 17
+const DIGITS = /^(?:Digit|Numpad)([1-9])$/
 
 export class TraderLootScene extends Phaser.Scene {
   private readonly ctx: RunContext
   private view: View | null = null
   private clock = 0
   private cards: PowerUpCard[] = []
+  private notes: string[] = []
+  private taken: boolean[] = []
+  private defeatLine = ''
+  private zones: Phaser.GameObjects.Zone[] = []
+  private labels: Phaser.GameObjects.Text[] = []
   private faces: CardFace[] = []
   private dim!: Phaser.GameObjects.Rectangle
   private title!: Phaser.GameObjects.Text
@@ -43,6 +51,9 @@ export class TraderLootScene extends Phaser.Scene {
     this.clock = 0
     this.view = null
     this.cards = loot.bonus ? [...loot.cards, loot.bonus] : [...loot.cards]
+    this.notes = loot.notes
+    this.taken = this.cards.map(() => true)
+    this.defeatLine = loot.line
     this.dim = this.add.rectangle(0, 0, 1, 1, PALETTE.navy, 0.72).setOrigin(0, 0)
     this.title = addText(this, 'Looted the FAIR trade stall', 16, { color: PALETTE.yellow, bold: true, align: 'center' }).setOrigin(0.5).setStroke(NAVY, 4)
     const ref = stallArt(this, 'empty')
@@ -55,7 +66,7 @@ export class TraderLootScene extends Phaser.Scene {
       this,
       count === 0
         ? 'His stall was empty, and you hold every legendary already. Nothing left to loot.'
-        : `${count === 1 ? 'This card is' : `These ${count} cards are`} yours, no fragments needed. He is gone for the rest of the run.`,
+        : `No fragments needed. Click a card or press its number to leave it. He is gone for the rest of the run.`,
       7,
       { align: 'center' },
     )
@@ -67,11 +78,21 @@ export class TraderLootScene extends Phaser.Scene {
       face.box.setVisible(true).setAlpha(0)
       return face
     })
+    // The hit areas are made once and resized in layout, never re-made.
+    this.zones = this.cards.map((_, i) => {
+      const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true })
+      zone.on('pointerdown', () => this.toggle(i))
+      return zone
+    })
+    this.labels = this.cards.map(() => addText(this, '', 7, { align: 'center', bold: true }).setOrigin(0.5, 0).setStroke(NAVY, 3))
+    this.refreshLabels()
     this.bonusLabel = addText(this, 'Bonus', 8, { color: PALETTE.yellow, bold: true }).setOrigin(0.5, 1).setStroke(NAVY, 3).setVisible(loot.bonus !== null)
     this.button = addButton(this, 'Walk on (Enter)', 100, 18, () => this.walkOn())
     onCanvasKey(this, (code, event) => {
       if (code === 'Space') event.preventDefault()
       if (CONTINUE_KEYS.has(code)) this.walkOn()
+      const digit = DIGITS.exec(code)
+      if (digit) this.toggle(Number(digit[1]) - 1)
     })
     overlayView(this, (view) => {
       this.view = view
@@ -84,12 +105,33 @@ export class TraderLootScene extends Phaser.Scene {
     const t = Math.min(1, this.clock / INTRO_MS)
     this.dim.setAlpha(t)
     // The cards come in one after another.
-    for (let i = 0; i < this.faces.length; i++) this.faces[i].box.setAlpha(Math.max(0, Math.min(1, (this.clock - 120 - i * 90) / 220)))
+    for (let i = 0; i < this.faces.length; i++) {
+      const alpha = Math.max(0, Math.min(1, (this.clock - 120 - i * 90) / 220))
+      this.faces[i].box.setAlpha(this.taken[i] ? alpha : alpha * 0.4)
+      this.labels[i].setAlpha(alpha)
+    }
+  }
+
+  private toggle(i: number) {
+    // A click still landing from the fight must not flip a card while they fade in.
+    if (this.clock < GUARD_MS || i < 0 || i >= this.cards.length) return
+    this.taken[i] = !this.taken[i]
+    this.refreshLabels()
+    this.layout()
+  }
+
+  private refreshLabels() {
+    this.labels.forEach((label, i) => {
+      const note = this.notes[i] ?? ''
+      label.setText(`${this.taken[i] ? 'Taken' : 'Left'}${note ? `
+${note}` : ''}`).setColor(cssColor(this.taken[i] ? PALETTE.yellow : PALETTE.cream))
+    })
+    this.line?.setText(this.taken.includes(false) ? GRUMBLE : this.defeatLine)
   }
 
   private walkOn() {
     if (this.clock < GUARD_MS) return
-    this.ctx.gameplay?.closeTraderLoot()
+    this.ctx.gameplay?.closeTraderLoot(this.cards.filter((_, i) => this.taken[i]).map((card) => card.id))
   }
 
   private layout() {
@@ -116,7 +158,7 @@ export class TraderLootScene extends Phaser.Scene {
     this.hint.setWordWrapWidth(w - 32).setPosition(centre, below)
     // The cards in one row, as large as the room allows.
     const cardsTop = below + this.hint.height + 16
-    const bottom = h - margin - 26
+    const bottom = h - margin - 26 - LABEL_H
     const count = this.faces.length
     let cardH = Math.max(36, bottom - cardsTop)
     let cardW = (cardH * CARD_WIDTH) / CARD_HEIGHT
@@ -130,6 +172,8 @@ export class TraderLootScene extends Phaser.Scene {
       sizeCardFace(this.faces[i], this.cards[i], cardW)
       const x = centre - rowW / 2 + cardW / 2 + i * (cardW + GAP)
       this.faces[i].box.setPosition(x, cy)
+      this.zones[i].setPosition(x, cy).setSize(cardW, cardH)
+      this.labels[i].setPosition(x, cy + cardH / 2 + 1).setFontSize(Math.max(5, Math.min(7, cardW * 0.1))).setWordWrapWidth(cardW + GAP)
       if (i === count - 1) this.bonusLabel.setPosition(x, cardsTop - 2).setFontSize(Math.max(6, cardW * 0.09))
     }
     this.button.setPosition(centre, h - margin - 10)

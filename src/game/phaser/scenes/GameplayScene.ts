@@ -341,7 +341,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.ctx.openDatenkrake(index)
   }
 
-  // Holds the world and shows what the beaten FAIR trader left. The cards are applied already.
+  // Holds the world and shows what the beaten FAIR trader left. Nothing applies until it closes.
   protected openTraderLoot(loot: TraderLoot) {
     if (this.holds.has('over') || this.holds.has('loot')) return
     this.setHold('loot', true)
@@ -472,11 +472,14 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.onDatenkrakeClosed()
   }
 
-  closeTraderLoot() {
+  closeTraderLoot(takenIds: string[]) {
     if (!this.holds.has('loot')) return
     this.ctx.closeTraderLoot()
+    this.onTraderLootClosed(takenIds)
     this.setHold('loot', false)
   }
+
+  protected onTraderLootClosed(_takenIds: string[]): void {}
 
   // Only the card applies, like a level-up card without the level: hp, level and XP stay.
   buyCard(index: number, cardId: string): boolean {

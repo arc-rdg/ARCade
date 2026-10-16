@@ -29,11 +29,13 @@ export interface ActiveFight {
   bossName: string
 }
 
-// What the beaten FAIR trader left, for the loot overlay.
+// What the beaten FAIR trader offers, for the loot overlay.
 export interface TraderLoot {
   cards: PowerUpCard[]
   bonus: PowerUpCard | null
   line: string
+  // One note per card, bonus last: what a weapon card replaces or upgrades, else ''.
+  notes: string[]
 }
 
 // What the overlay scenes may ask of the running gameplay scene.
@@ -51,8 +53,8 @@ export interface GameplayControl {
   submitToDatenkrake(index: number): DatenkrakeDeal | null
   fightDatenkrake(index: number): void
   closeDatenkrake(): void
-  // The loot overlay of the beaten FAIR trader was read.
-  closeTraderLoot(): void
+  // The loot overlay of the beaten FAIR trader was read; `takenIds` are the cards the player took.
+  closeTraderLoot(takenIds: string[]): void
   setBindings(bindings: Bindings): void
 }
 

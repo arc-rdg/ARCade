@@ -47,7 +47,7 @@ describe('striking the FAIR trader in a run', () => {
 })
 
 describe('looting the beaten trader', () => {
-  it('gives the unsold stock and one legendary bonus, records them and closes his stall for the run', () => {
+  it('offers the unsold stock and one legendary bonus, applies them all by default, records them and closes his stall for the run', () => {
     const director = atFirstTrader()
     director.addFragments(100)
     const stock = [...director.stock(0)]
@@ -58,14 +58,49 @@ describe('looting the beaten trader', () => {
     expect(loot.cards.map((card) => card.id)).toEqual(unsold.map((card) => card.id))
     expect(loot.bonus?.rarity).toBe('legendary')
     expect(stock.map((card) => card.id)).not.toContain(loot.bonus?.id)
+    const offered = [...loot.cards, loot.bonus].map((card) => card?.id ?? '')
+    expect(director.levelHistory.filter((record) => record.looted)).toHaveLength(0)
+    expect(director.applyLootChoice(offered).map((card) => card.id)).toEqual(offered)
     expect(director.build.level).toBe(level)
     const looted = director.levelHistory.filter((record) => record.looted)
-    expect(looted.map((record) => record.cardId)).toEqual([...unsold, loot.bonus].map((card) => card?.id))
+    expect(looted.map((record) => record.cardId)).toEqual(offered)
     expect(historyRow(looted[0]).title).toMatch(/^Looted from the FAIR trader: /)
     expect(runRecap(director.levelHistory).filter((entry) => entry.tag === 'Looted')).toHaveLength(looted.length)
     expect(director.traderGone).toBe(true)
     expect(director.stock(0)).toHaveLength(0)
     expect(director.lootTrader(0)).toEqual({ cards: [], bonus: null })
+  })
+
+  it('applies and records only the cards the player took, the bonus legendary included', () => {
+    const director = atFirstTrader()
+    const loot = director.lootTrader(0)
+    const before = director.build
+    const keep = loot.cards.slice(1).map((card) => card.id)
+    expect(loot.bonus).not.toBeNull()
+    director.applyLootChoice(keep)
+    const looted = director.levelHistory.filter((record) => record.looted).map((record) => record.cardId)
+    expect(looted).toEqual(keep)
+    expect(looted).not.toContain(loot.cards[0].id)
+    expect(looted).not.toContain(loot.bonus?.id)
+    expect(runRecap(director.levelHistory).filter((entry) => entry.tag === 'Looted')).toHaveLength(keep.length)
+    expect(director.build).not.toBe(before)
+    expect(director.traderGone).toBe(true)
+  })
+
+  it('keeps the old weapon when the offered weapon is left, and leaving everything changes nothing', () => {
+    const director = atFirstTrader()
+    const before = director.build
+    const loot = director.lootTrader(0)
+    const weapon = [...loot.cards, loot.bonus].find((card) => card?.slot)
+    director.applyLootChoice([...loot.cards, loot.bonus].filter((card) => card !== weapon).map((card) => card?.id ?? ''))
+    if (weapon?.slot) expect(director.build.weapons[weapon.slot]).toEqual(before.weapons[weapon.slot])
+    const none = atFirstTrader()
+    const stateBefore = none.build
+    none.lootTrader(0)
+    expect(none.applyLootChoice([])).toEqual([])
+    expect(none.build).toEqual(stateBefore)
+    expect(none.levelHistory.filter((record) => record.looted)).toHaveLength(0)
+    expect(none.traderGone).toBe(true)
   })
 
   it('keeps him gone in every later waystation of the run, and a new run brings him back', () => {

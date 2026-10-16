@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { DEPTH, PALETTE, SCENE, TILE } from '../../contracts/constants'
 import { ENCOUNTER_SLOTS, rollEncounters } from '../../model/run'
+import { relationLabel, weaponRelation } from '../../model/progression'
 import type { Combatant } from '../../contracts/combat'
 import { applySpriteRef, datenkrakeArmArt, datenkrakeArt, doorArt, stallArt, traderArt, traderFighterArt } from '../art'
 import type { Arena } from '../bosses'
@@ -146,8 +147,7 @@ export class WaystationScene extends GameplayScene {
     }
   }
 
-  // He has fallen and faded: his stall is looted, the cards apply like purchases, and the overlay
-  // shows them.
+  // He has fallen and faded: his stall is open and the overlay offers the cards.
   private finishFight(fight: TraderFight) {
     const line = fight.defeatLine()
     fight.destroy()
@@ -155,9 +155,17 @@ export class WaystationScene extends GameplayScene {
     if (this.ctx.active) this.ctx.active.boss = null
     this.director.setHp(this.player.hp())
     const loot = this.director.lootTrader(this.index)
+    const notes = (loot.bonus ? [...loot.cards, loot.bonus] : loot.cards).map((card) => {
+      return relationLabel(weaponRelation(this.director.build, card), card)
+    })
+    this.openTraderLoot({ ...loot, line, notes })
+  }
+
+  // The player chose: the taken cards apply now.
+  protected onTraderLootClosed(takenIds: string[]) {
+    this.director.applyLootChoice(takenIds)
     this.player.setBuild(this.director.build)
     this.loadout.sync(this.director.build)
-    this.openTraderLoot({ ...loot, line })
   }
 
   protected freezeActors(frozen: boolean) {

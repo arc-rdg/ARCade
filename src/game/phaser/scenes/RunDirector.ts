@@ -102,6 +102,8 @@ export class RunDirector {
   // the waystations where he turned hostile, and the whole stock of each visit for the loot. Once
   // beaten he is gone for the rest of the run, and every later waystation shows his closed stall.
   traderGone = false
+  // The trader's offer between the fight and the player's choice on the loot screen.
+  private pendingLoot: { index: number; cards: PowerUpCard[] } | null = null
   private readonly strikes = new Map<number, StrikeState>()
   private readonly hostile = new Set<number>()
   private readonly stockIds = new Map<number, string[]>()
@@ -387,9 +389,10 @@ export class RunDirector {
     return traderBuild(this.build.level, this.rng.fork(`trader/${index}`))
   }
 
-  // The beaten trader's stall: every card left in his stock, then one legendary augment or weapon
-  // the mage does not have and his stock did not hold. They apply like purchases, without a level,
-  // and the trader is gone for the rest of the run. Returns what applied, the bonus apart.
+  // The beaten trader's stall as an offer: every card left in his stock, then one legendary augment
+  // or weapon the mage does not have and his stock did not hold. Nothing applies yet; the loot
+  // screen lets the player leave cards, and applyLootChoice applies the rest. The trader is gone
+  // for the run from here on. Only cards the build can take show up.
   lootTrader(index: number): { cards: PowerUpCard[]; bonus: PowerUpCard | null } {
     if (this.traderGone) return { cards: [], bonus: null }
     this.traderGone = true
@@ -397,14 +400,25 @@ export class RunDirector {
     const loot = applyLoot(this.build, stock)
     stock.length = 0
     const pick = traderBonus(loot.build, this.stockIds.get(index) ?? [], this.rng.fork(`traderLoot/${index}`))
-    const withBonus = pick ? applyLoot(loot.build, [pick]) : { build: loot.build, applied: [] }
-    this.build = withBonus.build
-    const bonus = withBonus.applied[0] ?? null
-    const source = lootSourceText(this.plan, index, this.bossSpec(index).label)
-    for (const card of [...loot.applied, ...withBonus.applied]) {
+    const bonus = pick ? (applyLoot(loot.build, [pick]).applied[0] ?? null) : null
+    this.pendingLoot = { index, cards: bonus ? [...loot.applied, bonus] : loot.applied }
+    return { cards: loot.applied, bonus }
+  }
+
+  // Applies the offered cards the player took, in offer order, like purchases (no level, XP or
+  // heal), and records only those. Returns what applied.
+  applyLootChoice(takenIds: readonly string[]): PowerUpCard[] {
+    const pending = this.pendingLoot
+    this.pendingLoot = null
+    if (!pending) return []
+    const chosen = pending.cards.filter((card) => takenIds.includes(card.id))
+    const { build, applied } = applyLoot(this.build, chosen)
+    this.build = build
+    const source = lootSourceText(this.plan, pending.index, this.bossSpec(pending.index).label)
+    for (const card of applied) {
       this.history = appendLevelUp(this.history, { level: this.build.level, cardId: card.id, cardName: card.name, rarity: card.rarity, offered: [], source, looted: true })
     }
-    return { cards: loot.applied, bonus }
+    return applied
   }
 
   completeStretch(): void {
