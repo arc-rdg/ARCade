@@ -1,7 +1,9 @@
 name: Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -14,19 +16,17 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx tsc -b
-      - run: npx oxlint
-      - run: npx vitest run --maxWorkers=4
-      - run: npm run build
-      - run: npm run pack:check
       - run: npm run build:site
       - uses: actions/upload-pages-artifact@v3
         with:

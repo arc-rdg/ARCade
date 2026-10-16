@@ -124,4 +124,10 @@ To publish: create the `@arc-rdg` organisation on npm, remove `"private": true` 
 
 Bump `version` in `package.json` and commit. Then `git tag v<version>` and
 `git push origin main --tags`. The Release workflow checks that the tag matches the version, runs
-the checks, builds, packs and creates the GitHub Release with the tarball attached.
+the full CI test suite, and only if that passes builds, packs and creates the GitHub Release with the
+tarball attached.
+
+### CI
+
+The CI workflow (tsc, oxlint, vitest, build, pack:check, build:site) runs on every push and pull
+request to `main`. The Pages site is deployed only after CI has passed on a push to `main`.
