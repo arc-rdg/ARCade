@@ -245,14 +245,23 @@ then `DatenkrakeScene` opens over the world with a line of the kraken and two ch
   until Walk on (Enter, after 600 ms).
 
 There is no other way out of the grip, neither the pause key nor walking away. The kraken grabs once
-per waystation (`RunDirector.datenkrakeOutcome`). It takes one stack of a stat card (the level
-history counts the stacks, `statStacks` in `levelHistory.ts`), a mechanic or an ability card (whose
+per waystation (`RunDirector.datenkrakeOutcome`). It takes one stack of a stat card (the build
+counts its stacks, `statStacks` in `model/progression/build.ts`), a mechanic or an ability card (whose
 slot becomes free again), never a weapon, a legendary or a corrupted augment
 (`model/progression/datenkrake.ts`). A build with nothing it may take is only mocked and keeps
 walking. Both choices go into the level history and the run recap: "Fought off the Datenkrake",
 "Taken by the Datenkrake: X" and "Corrupted: Y", marked purple. The build panel lists the corrupted
 augments as dark purple chips. The lines (`DATENKRAKE_LINES`) mix the meme with research data
 management and never repeat right away.
+
+The build keeps a stat log (`statLog`): every stat card stack, level gained, corrupted augment and
+Accept All Cookies kill, in the order they happened. The stats are that log replayed from the base
+build, each card capped as it was when taken (`replayStats` and `recomputeStats` in
+`model/progression/build.ts`). Adding something runs the same step once, so the numbers are the
+same as before the log existed. Taking a stack out drops its entry and replays the rest
+(`removeStatStack`), so a stack past a stat limit or under Shadow IT or Infinite Scroll costs what it
+is still worth and no more. When stacks of a card sit on both sides of a corrupted augment, the one
+whose loss costs least goes. The hp stays where it was, capped by the new max HP.
 
 A corrupted augment (`model/progression/corrupted.ts`) has one strong boon and one harsh curse, and
 most of them only shine or only hurt on some builds. None is given twice, and In Silico and In Vitro
@@ -340,10 +349,10 @@ else of rarity ... fits".
 The swap (`refineCard` in `model/progression/swate.ts`) removes the old card like the Datenkrake
 does (`removeAugment`, plus `removeCard` for legendary augments, which also free their slot) and
 applies the new one like a purchase: no level, no XP, no heal beyond what the card gives. An ability card
-takes the slot of the ability it replaces, otherwise the first free one. Removing a stat stack
-divides, so it is approximate at the stat limits, as for the Datenkrake. The swap goes into the level
-history and the run recap as "Refined: Old -> New" with its price, and the stat stack counts follow
-(`statStacks`).
+takes the slot of the ability it replaces, otherwise the first free one. A stat stack goes by
+replaying the stat log without it, as for the Datenkrake. The swap goes into the level history and
+the run recap as "Refined: Old -> New" with its price, and the stack counts the build reports
+(`statStacks`) follow.
 
 | What | Where |
 |---|---|

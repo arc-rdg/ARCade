@@ -5,7 +5,7 @@ import type { PlayerBuild, PowerUpCard } from '../../contracts/progression'
 import { createRng, type Rng } from '../../contracts/rng'
 import type { RunPlan, Segment } from '../../contracts/run'
 import { bossFromNode, finalBossFromPlan } from '../../model/content'
-import { appendLevelUp, datenkrakeSourceText, lootSourceText, sourceText, statStacks, storeSourceText, swateSourceText, type LevelUpRecord } from './levelHistory'
+import { appendLevelUp, datenkrakeSourceText, lootSourceText, sourceText, storeSourceText, swateSourceText, type LevelUpRecord } from './levelHistory'
 import {
   addXp,
   applyCard,
@@ -27,6 +27,7 @@ import {
   createBuild,
   createLinePicker,
   DATENKRAKE_LINES,
+  eatCookie,
   levelUpSummary,
   priceOf,
   refineCard,
@@ -269,8 +270,7 @@ export class RunDirector {
   // first. False without the augment.
   eatCookie(): boolean {
     if (!this.build.corrupted.includes('acceptAllCookies') || this.isOver()) return false
-    const gain = CORRUPTION.acceptAllCookies.maxHpPerKill
-    this.build = { ...this.build, hp: this.build.hp + gain, stats: { ...this.build.stats, maxHp: this.build.stats.maxHp + gain } }
+    this.build = eatCookie(this.build)
     return true
   }
 
@@ -287,7 +287,7 @@ export class RunDirector {
   // Swaps `fromId` for `toId` at SWATE (deprecated) in the waystation after node boss `index`. The
   // fragments pay, the history keeps "Refined: Old to New". Null when the swap cannot happen.
   refine(index: number, fromId: string, toId: string): Refined | null {
-    const result = refineCard(this.build, statStacks(this.history), this.fragments, this.swapsLeft(index), fromId, toId)
+    const result = refineCard(this.build, this.fragments, this.swapsLeft(index), fromId, toId)
     if (!result) return null
     this.build = result.build
     this.fragments = result.fragments
@@ -321,7 +321,7 @@ export class RunDirector {
   }
 
   datenkrakeHasPrey(): boolean {
-    return canSubmit(this.build, statStacks(this.history))
+    return canSubmit(this.build)
   }
 
   // "Fight back": the mage keeps everything, the history keeps the story.
@@ -335,7 +335,7 @@ export class RunDirector {
   // waystation, so the same run and choices meet the same deal. Null when the deal cannot happen.
   submitToDatenkrake(index: number): DatenkrakeDeal | null {
     if (this.datenkrakeDone.has(index)) return null
-    const deal = submitToDatenkrake(this.build, statStacks(this.history), this.rng.fork(`datenkrake/${index}`))
+    const deal = submitToDatenkrake(this.build, this.rng.fork(`datenkrake/${index}`))
     if (!deal) return null
     this.datenkrakeDone.set(index, 'submitted')
     this.build = deal.build

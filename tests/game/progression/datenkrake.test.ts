@@ -20,8 +20,8 @@ const pick = (build: PlayerBuild, ...ids: string[]) => ids.reduce(applyCard, bui
 
 // A mid-run build: two weapons, a legendary, two stat cards (one twice), a motion mechanic and an
 // ability in slot 1.
-function midRun(): { build: PlayerBuild; stacks: Record<string, number> } {
-  const build = pick(
+function midRun(): PlayerBuild {
+  return pick(
     createBuild(),
     'weapon.wand',
     'weapon.beakerHammer',
@@ -32,14 +32,13 @@ function midRun(): { build: PlayerBuild; stacks: Record<string, number> } {
     'mechanic.doubleJump',
     'mechanic.centrifugeSpin',
   )
-  return { build, stacks: { 'stat.sharpened': 2, 'stat.thickRobe': 1 } }
 }
 
 describe('what the Datenkrake may take', () => {
   it('lists every stat stack and mechanic, never a weapon, a legendary or a corrupted augment', () => {
-    const { build, stacks } = midRun()
+    const build = midRun()
     const corrupted = applyCorrupted(build, 'bigData')
-    const pool = eligibleAugments(corrupted, stacks)
+    const pool = eligibleAugments(corrupted)
     expect(pool).toEqual(['stat.sharpened', 'stat.sharpened', 'stat.thickRobe', 'mechanic.doubleJump', 'mechanic.centrifugeSpin'])
     for (const id of pool) {
       const card = CARDS.find((entry) => entry.id === id)
@@ -49,13 +48,13 @@ describe('what the Datenkrake may take', () => {
 
   it('has nothing to take from a build of weapons and legendaries only, so it cannot deal', () => {
     const build = pick(createBuild(), 'weapon.scalpel', 'legendary.labCoat')
-    expect(eligibleAugments(build, {})).toEqual([])
-    expect(canSubmit(build, {})).toBe(false)
-    expect(submitToDatenkrake(build, {}, createRng('x'))).toBeNull()
+    expect(eligibleAugments(build)).toEqual([])
+    expect(canSubmit(build)).toBe(false)
+    expect(submitToDatenkrake(build, createRng('x'))).toBeNull()
   })
 
   it('takes one stack of a stat card and leaves the others', () => {
-    const { build } = midRun()
+    const build = midRun()
     const after = removeAugment(build, 'stat.sharpened')
     expect(after.stats.damage).toBeCloseTo(1.15)
     const robe = removeAugment(build, 'stat.thickRobe')
@@ -64,7 +63,7 @@ describe('what the Datenkrake may take', () => {
   })
 
   it('frees the ability slot of a taken ability card for the next one', () => {
-    const { build } = midRun()
+    const build = midRun()
     expect(build.abilitySlots[0]).toBe('centrifugeSpin')
     const after = removeAugment(build, 'mechanic.centrifugeSpin')
     expect(after.mechanics).toEqual(['doubleJump'])
@@ -81,23 +80,23 @@ describe('what the Datenkrake may take', () => {
 
 describe('submitting to the Datenkrake', () => {
   it('swaps one eligible augment for one corrupted augment, the same way for the same seed', () => {
-    const { build, stacks } = midRun()
-    const deal = submitToDatenkrake(build, stacks, createRng('waystation'))
+    const build = midRun()
+    const deal = submitToDatenkrake(build, createRng('waystation'))
     expect(deal).not.toBeNull()
     if (!deal) return
-    expect(eligibleAugments(build, stacks)).toContain(deal.taken)
+    expect(eligibleAugments(build)).toContain(deal.taken)
     expect(deal.build.corrupted).toEqual([deal.given])
     expect(deal.build.weapons).toEqual(build.weapons)
     expect(deal.build.legendaries).toEqual(build.legendaries)
-    expect(submitToDatenkrake(build, stacks, createRng('waystation'))).toEqual(deal)
+    expect(submitToDatenkrake(build, createRng('waystation'))).toEqual(deal)
   })
 
   it('takes every kind of augment over many waystations and gives every corrupted augment', () => {
-    const { build, stacks } = midRun()
+    const build = midRun()
     const taken = new Set<string>()
     const given = new Set<string>()
     for (let i = 0; i < 400; i++) {
-      const deal = submitToDatenkrake(build, stacks, createRng(`deal-${i}`))
+      const deal = submitToDatenkrake(build, createRng(`deal-${i}`))
       if (!deal) throw new Error('no deal')
       taken.add(deal.taken)
       given.add(deal.given)
@@ -107,12 +106,10 @@ describe('submitting to the Datenkrake', () => {
   })
 
   it('never gives a corrupted augment twice', () => {
-    let { build } = midRun()
-    const stacks = { 'stat.sharpened': 2, 'stat.thickRobe': 1 }
+    let build = midRun()
     for (let i = 0; i < 3; i++) {
-      const deal = submitToDatenkrake(build, stacks, createRng(`again-${i}`))
+      const deal = submitToDatenkrake(build, createRng(`again-${i}`))
       if (!deal) throw new Error('no deal')
-      if (deal.taken.startsWith('stat.')) stacks[deal.taken as keyof typeof stacks]--
       build = deal.build
     }
     expect(new Set(build.corrupted).size).toBe(3)

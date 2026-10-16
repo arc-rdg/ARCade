@@ -1,5 +1,5 @@
 import type { LegendaryId, PlayerBuild, PowerUpCard, Rarity } from '../../contracts/progression'
-import { canApply, applyCard } from './build'
+import { applyCard, canApply, statStacks } from './build'
 import { ABILITY_IDS, CARDS } from './catalog'
 import { removeAugment } from './datenkrake'
 import { PRICES } from './store'
@@ -25,7 +25,7 @@ export function swapCost(rarity: Rarity): number {
 }
 
 // The build without one copy of `cardId`. Stat cards and mechanics go like the Datenkrake takes
-// them (a stat at its limit comes out slightly low); a legendary augment also leaves its slot.
+// them (the stats are replayed without the stack); a legendary augment also leaves its slot.
 export function removeCard(build: PlayerBuild, cardId: string): PlayerBuild {
   if (!cardId.startsWith('legendary.')) return removeAugment(build, cardId)
   const id = cardId.slice('legendary.'.length) as LegendaryId
@@ -35,10 +35,9 @@ export function removeCard(build: PlayerBuild, cardId: string): PlayerBuild {
 
 const isAbilityCard = (cardId: string): boolean => (ABILITY_IDS as readonly string[]).includes(cardId.slice(cardId.indexOf('.') + 1)) && !cardId.startsWith('stat.')
 
-// How many copies of `card` the mage holds. `statStacks` counts the stat cards (the level history
-// knows them, the build only has their sum).
-function copies(build: PlayerBuild, statStacks: Readonly<Record<string, number>>, card: PowerUpCard): number {
-  if (card.kind === 'stat') return statStacks[card.id] ?? 0
+// How many copies of `card` the mage holds: the stacks of a stat card, 1 or 0 for the rest.
+function copies(build: PlayerBuild, card: PowerUpCard): number {
+  if (card.kind === 'stat') return statStacks(build)[card.id] ?? 0
   if (card.kind === 'mechanic') return build.mechanics.includes(card.id.slice('mechanic.'.length) as never) ? 1 : 0
   if (card.kind === 'legendary') return build.legendaries.includes(card.id.slice('legendary.'.length) as LegendaryId) ? 1 : 0
   return 0
@@ -69,10 +68,10 @@ export interface SwateOption {
 // The augments the mage can give up, in catalog order, with what each swap would cost and whether
 // it can happen now. 'nothing' means no card of that rarity is left to swap in, 'poor' that the
 // fragments do not cover the cost.
-export function swateOptions(build: PlayerBuild, statStacks: Readonly<Record<string, number>>, fragments: number): SwateOption[] {
+export function swateOptions(build: PlayerBuild, fragments: number): SwateOption[] {
   const options: SwateOption[] = []
   for (const card of CARDS) {
-    const count = copies(build, statStacks, card)
+    const count = copies(build, card)
     if (count === 0) continue
     const replacements = replacementsFor(build, card.id)
     const cost = swapCost(card.rarity)
@@ -95,7 +94,6 @@ export interface Refined {
 // replacement is not one of its replacements, or the fragments do not cover the cost.
 export function refineCard(
   build: PlayerBuild,
-  statStacks: Readonly<Record<string, number>>,
   fragments: number,
   swapsLeft: number,
   fromId: string,
@@ -103,7 +101,7 @@ export function refineCard(
 ): Refined | null {
   const from = CARDS.find((entry) => entry.id === fromId)
   const to = CARDS.find((entry) => entry.id === toId)
-  if (!from || !to || swapsLeft <= 0 || copies(build, statStacks, from) === 0) return null
+  if (!from || !to || swapsLeft <= 0 || copies(build, from) === 0) return null
   const cost = swapCost(from.rarity)
   if (fragments < cost || !replacementsFor(build, fromId).some((entry) => entry.id === toId)) return null
   const freed = isAbilityCard(fromId) ? build.abilitySlots.indexOf(fromId.slice(fromId.indexOf('.') + 1) as never) : -1

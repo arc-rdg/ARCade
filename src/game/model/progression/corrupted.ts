@@ -1,4 +1,4 @@
-import type { CorruptedId, PlayerBuild } from '../../contracts/progression'
+import type { CorruptedId, PlayerBuild, PlayerStats } from '../../contracts/progression'
 
 // Corrupted augments: what the Datenkrake gives back for the augment it took. Each has one strong,
 // often absurd boon and one harsh curse, and most of them only shine or only hurt on some builds,
@@ -165,25 +165,41 @@ export function corruptedChoices(build: PlayerBuild): CorruptedId[] {
   )
 }
 
-// Adds the augment and its stat parts. The stats go past the card limits on purpose: this is the
-// place for too much.
+// The stat part of a corrupted augment, applied where the augment sits in the stat log. The stats
+// go past the card limits on purpose: this is the place for too much.
+export function corruptedStats(stats: PlayerStats, id: CorruptedId): PlayerStats {
+  const next = { ...stats }
+  if (id === 'bigData') next.damage *= CORRUPTION.bigData.damage
+  if (id === 'deprecatedJump') next.maxHp = Math.round(next.maxHp * CORRUPTION.deprecatedJump.maxHp)
+  if (id === 'shadowIt') next.dashCooldownMs *= CORRUPTION.shadowIt.dashCooldown
+  if (id === 'dataLake') next.moveSpeed *= CORRUPTION.dataLake.moveSpeed
+  if (id === 'inVitro') next.meleeRange *= CORRUPTION.inVitro.meleeRange
+  if (id === 'infiniteScroll') {
+    next.dashCooldownMs *= CORRUPTION.infiniteScroll.dashCooldown
+    next.attackSpeed *= CORRUPTION.infiniteScroll.attackSpeed
+  }
+  return next
+}
+
+// Adds the augment and its stat parts. Deprecated jump() also heals to the new max HP.
 export function applyCorrupted(build: PlayerBuild, id: CorruptedId): PlayerBuild {
   if (build.corrupted.includes(id)) return build
-  const stats = { ...build.stats }
-  let hp = build.hp
-  if (id === 'bigData') stats.damage *= CORRUPTION.bigData.damage
-  if (id === 'deprecatedJump') {
-    stats.maxHp = Math.round(stats.maxHp * CORRUPTION.deprecatedJump.maxHp)
-    hp = stats.maxHp
-  }
-  if (id === 'shadowIt') stats.dashCooldownMs *= CORRUPTION.shadowIt.dashCooldown
-  if (id === 'dataLake') stats.moveSpeed *= CORRUPTION.dataLake.moveSpeed
-  if (id === 'inVitro') stats.meleeRange *= CORRUPTION.inVitro.meleeRange
-  if (id === 'infiniteScroll') {
-    stats.dashCooldownMs *= CORRUPTION.infiniteScroll.dashCooldown
-    stats.attackSpeed *= CORRUPTION.infiniteScroll.attackSpeed
-  }
-  return { ...build, hp, stats, corrupted: [...build.corrupted, id] }
+  const stats = corruptedStats(build.stats, id)
+  const hp = id === 'deprecatedJump' ? stats.maxHp : build.hp
+  return { ...build, hp, stats, corrupted: [...build.corrupted, id], statLog: [...build.statLog, corruptedCardId(id)] }
+}
+
+// The stat log entry of one Accept All Cookies kill.
+export const COOKIE_ENTRY = 'cookie'
+
+export function cookieStats(stats: PlayerStats): PlayerStats {
+  return { ...stats, maxHp: stats.maxHp + CORRUPTION.acceptAllCookies.maxHpPerKill }
+}
+
+// Accept All Cookies: a kill raises max HP for the rest of the run, and the hp with it.
+export function eatCookie(build: PlayerBuild): PlayerBuild {
+  const stats = cookieStats(build.stats)
+  return { ...build, hp: build.hp + stats.maxHp - build.stats.maxHp, stats, statLog: [...build.statLog, COOKIE_ENTRY] }
 }
 
 export type CorruptionFlags = Record<CorruptedId, boolean>

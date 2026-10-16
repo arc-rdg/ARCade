@@ -6,7 +6,7 @@ import { applySpriteRef, fragmentArt, RARITY_COLOR, SWATE_HEIGHT, SWATE_WIDTH, s
 import { cssColor } from '../color'
 import type { View } from '../view'
 import type { RunContext } from './context'
-import { fitLine, statStacks } from './levelHistory'
+import { fitLine } from './levelHistory'
 import { drawScribbleBox } from './panelFrame'
 import { addButton, addText, type Button, onCanvasKey, onClick, overlayView } from './ui'
 
@@ -231,7 +231,7 @@ export class SwateScene extends Phaser.Scene {
     const left = director.swapsLeft(this.index)
     const entries: Entry[] = []
     if (this.step === 'pick') {
-      const options = swateOptions(director.build, statStacks(director.levelHistory), director.fragments)
+      const options = swateOptions(director.build, director.fragments)
       for (const option of options) entries.push(this.pickEntry(option, left))
       for (const id of director.build.corrupted) {
         const augment = corruptedAugment(id)
@@ -247,7 +247,7 @@ export class SwateScene extends Phaser.Scene {
         })
       }
     } else if (this.from) {
-      const option = swateOptions(director.build, statStacks(director.levelHistory), director.fragments).find((entry) => entry.card.id === this.from?.id)
+      const option = swateOptions(director.build, director.fragments).find((entry) => entry.card.id === this.from?.id)
       for (const card of option?.replacements ?? []) {
         entries.push({ id: card.id, title: card.name, sub: card.description, detail: `${card.rarity} · ${card.description}`, cost: swapCost(card.rarity), color: RARITY_COLOR[card.rarity], enabled: true, reason: null })
       }

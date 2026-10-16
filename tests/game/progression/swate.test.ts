@@ -34,10 +34,9 @@ describe('swaps and costs', () => {
 
 describe('what SWATE lists and offers', () => {
   const build = pick(createBuild(), 'weapon.wand', 'weapon.arcitect', 'stat.sharpened', 'stat.sharpened', 'mechanic.doubleJump', 'mechanic.centrifugeSpin', 'legendary.theOntology')
-  const stacks = { 'stat.sharpened': 2 }
 
   it('lists stat stacks, mechanics, abilities and legendary augments, never a weapon', () => {
-    const options = swateOptions(build, stacks, 999)
+    const options = swateOptions(build, 999)
     expect(options.map((option) => option.card.id)).toEqual(['stat.sharpened', 'mechanic.doubleJump', 'mechanic.centrifugeSpin', 'legendary.theOntology'])
     expect(options[0].count).toBe(2)
     expect(options.some((option) => option.card.kind === 'weapon')).toBe(false)
@@ -45,11 +44,11 @@ describe('what SWATE lists and offers', () => {
 
   it('leaves out corrupted augments, which are not cards', () => {
     const corrupted = applyCorrupted(build, 'bigData')
-    expect(swateOptions(corrupted, stacks, 999).map((option) => option.card.id)).toEqual(swateOptions(build, stacks, 999).map((option) => option.card.id))
+    expect(swateOptions(corrupted, 999).map((option) => option.card.id)).toEqual(swateOptions(build, 999).map((option) => option.card.id))
   })
 
   it('offers cards of the same rarity only, no weapons, no owned card that does not stack', () => {
-    for (const option of swateOptions(build, stacks, 999)) {
+    for (const option of swateOptions(build, 999)) {
       for (const card of option.replacements) {
         expect(card.rarity).toBe(option.card.rarity)
         expect(card.kind).not.toBe('weapon')
@@ -86,17 +85,16 @@ describe('what SWATE lists and offers', () => {
   })
 
   it('marks what the fragments cannot cover', () => {
-    expect(swateOptions(build, stacks, 3).every((option) => option.state === 'poor')).toBe(true)
-    expect(swateOptions(build, stacks, 999).every((option) => option.state === 'ok')).toBe(true)
+    expect(swateOptions(build, 3).every((option) => option.state === 'poor')).toBe(true)
+    expect(swateOptions(build, 999).every((option) => option.state === 'ok')).toBe(true)
   })
 })
 
 describe('applying a swap', () => {
   const build = pick(createBuild(), 'stat.sharpened', 'stat.sharpened', 'mechanic.doubleJump', 'mechanic.centrifugeSpin', 'mechanic.fumeHood', 'legendary.theOntology')
-  const stacks = { 'stat.sharpened': 2 }
 
   it('removes one stat stack and adds the new card like a purchase', () => {
-    const result = refineCard(build, stacks, 25, 1, 'stat.sharpened', 'stat.swiftFeet')
+    const result = refineCard(build, 25, 1, 'stat.sharpened', 'stat.swiftFeet')
     expect(result).not.toBeNull()
     if (!result) return
     expect(result.cost).toBe(10)
@@ -111,7 +109,7 @@ describe('applying a swap', () => {
   it('moves an ability into the slot the old one freed', () => {
     const slot = build.abilitySlots.indexOf('centrifugeSpin')
     expect(slot).toBeGreaterThanOrEqual(0)
-    const result = refineCard(build, stacks, 25, 1, 'mechanic.centrifugeSpin', 'mechanic.citationNeeded')
+    const result = refineCard(build, 25, 1, 'mechanic.centrifugeSpin', 'mechanic.citationNeeded')
     expect(result).not.toBeNull()
     if (!result) return
     expect(result.build.mechanics).not.toContain('centrifugeSpin')
@@ -122,14 +120,14 @@ describe('applying a swap', () => {
   })
 
   it('takes a plain mechanic out and puts an ability in the first free slot', () => {
-    const result = refineCard(build, stacks, 25, 1, 'mechanic.doubleJump', 'mechanic.citationNeeded')
+    const result = refineCard(build, 25, 1, 'mechanic.doubleJump', 'mechanic.citationNeeded')
     expect(result?.build.mechanics).toContain('citationNeeded')
     expect(result?.build.mechanics).not.toContain('doubleJump')
     expect(result?.build.abilitySlots).toContain('citationNeeded')
   })
 
   it('swaps a legendary augment and frees or fills its slot', () => {
-    const result = refineCard(build, stacks, 90, 1, 'legendary.theOntology', 'legendary.peerPressure')
+    const result = refineCard(build, 90, 1, 'legendary.theOntology', 'legendary.peerPressure')
     expect(result?.cost).toBe(90)
     expect(result?.build.legendaries).toEqual(['peerPressure'])
     expect(result?.build.abilitySlots).toContain('peerPressure')
@@ -138,20 +136,20 @@ describe('applying a swap', () => {
   })
 
   it('refuses without swaps, without enough fragments, for a weapon, a card not held or another rarity', () => {
-    expect(refineCard(build, stacks, 25, 0, 'stat.sharpened', 'stat.swiftFeet')).toBeNull()
-    expect(refineCard(build, stacks, 9, 1, 'stat.sharpened', 'stat.swiftFeet')).toBeNull()
+    expect(refineCard(build, 25, 0, 'stat.sharpened', 'stat.swiftFeet')).toBeNull()
+    expect(refineCard(build, 9, 1, 'stat.sharpened', 'stat.swiftFeet')).toBeNull()
     const armed = pick(build, 'weapon.wand')
-    expect(refineCard(armed, stacks, 99, 1, 'weapon.wand', 'weapon.scalpel')).toBeNull()
-    expect(refineCard(armed, stacks, 99, 1, 'stat.sharpened', 'weapon.scalpel')).toBeNull()
-    expect(refineCard(build, stacks, 99, 1, 'mechanic.airDash', 'mechanic.doubleJump')).toBeNull()
-    expect(refineCard(build, stacks, 99, 1, 'stat.sharpened', 'mechanic.airDash')).toBeNull()
-    expect(refineCard(build, stacks, 99, 1, 'stat.sharpened', 'stat.sharpened')).toBeNull()
+    expect(refineCard(armed, 99, 1, 'weapon.wand', 'weapon.scalpel')).toBeNull()
+    expect(refineCard(armed, 99, 1, 'stat.sharpened', 'weapon.scalpel')).toBeNull()
+    expect(refineCard(build, 99, 1, 'mechanic.airDash', 'mechanic.doubleJump')).toBeNull()
+    expect(refineCard(build, 99, 1, 'stat.sharpened', 'mechanic.airDash')).toBeNull()
+    expect(refineCard(build, 99, 1, 'stat.sharpened', 'stat.sharpened')).toBeNull()
   })
 
   it('applies every replacement it lists', () => {
-    for (const option of swateOptions(build, stacks, 999)) {
+    for (const option of swateOptions(build, 999)) {
       for (const card of option.replacements) {
-        expect(refineCard(build, stacks, 999, 1, option.card.id, card.id)).not.toBeNull()
+        expect(refineCard(build, 999, 1, option.card.id, card.id)).not.toBeNull()
         expect(canApply(removeCard(build, option.card.id), card.id)).toBe(true)
         expect(cardOf(card.id)?.rarity).toBe(option.card.rarity)
       }

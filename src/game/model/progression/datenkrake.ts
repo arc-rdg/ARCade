@@ -1,6 +1,6 @@
 import type { CorruptedId, MechanicId, PlayerBuild } from '../../contracts/progression'
 import type { Rng } from '../../contracts/rng'
-import { createBuild } from './build'
+import { recomputeStats, removeStatStack, statStacks } from './build'
 import { ABILITY_IDS } from './catalog'
 import { applyCorrupted, corruptedChoices } from './corrupted'
 
@@ -9,51 +9,30 @@ import { applyCorrupted, corruptedChoices } from './corrupted'
 // at a time), mechanics and ability cards, never a weapon (the mage must keep fighting) and never a
 // legendary. It never takes a corrupted augment back either: that data is already its own.
 
-// Undoes one stack of a stat card. Multipliers divide, so the stacks left keep their full value
-// whatever was taken (a stat at its limit comes out slightly lower than an exact replay would).
-const STAT_INVERSE: Record<string, (build: PlayerBuild) => PlayerBuild> = {
-  'stat.swiftFeet': (b) => ({ ...b, stats: { ...b.stats, moveSpeed: b.stats.moveSpeed / 1.12 } }),
-  'stat.quickHands': (b) => ({ ...b, stats: { ...b.stats, attackSpeed: b.stats.attackSpeed / 1.12 } }),
-  'stat.sharpened': (b) => ({ ...b, stats: { ...b.stats, damage: b.stats.damage / 1.15 } }),
-  'stat.keenEye': (b) => ({ ...b, stats: { ...b.stats, critChance: Math.max(0, b.stats.critChance - 0.05) } }),
-  'stat.freshBattery': (b) => ({ ...b, stats: { ...b.stats, dashCooldownMs: b.stats.dashCooldownMs + 500 } }),
-  'stat.longReach': (b) => ({ ...b, stats: { ...b.stats, meleeRange: b.stats.meleeRange / 1.15 } }),
-  'stat.thickRobe': (b) => {
-    const maxHp = Math.max(1, Math.round(b.stats.maxHp / 1.15))
-    return { ...b, hp: Math.max(1, Math.min(b.hp, maxHp)), stats: { ...b.stats, maxHp } }
-  },
-}
-
-// What the mechanics did on top of being owned, undone when one is taken.
-const MECHANIC_INVERSE: Partial<Record<MechanicId, (build: PlayerBuild) => PlayerBuild>> = {
-  lifesteal: (b) => ({ ...b, stats: { ...b.stats, lifesteal: createBuild().stats.lifesteal } }),
-  extraChoice: (b) => ({ ...b, offerSize: createBuild().offerSize }),
-}
-
-// Every augment the Datenkrake may take, one entry per stack: `statStacks` counts the stat cards
-// taken so far (the level history knows them, the build only has their sum). Stats come first in
-// id order, then the mechanics in the order they were taken.
-export function eligibleAugments(build: PlayerBuild, statStacks: Readonly<Record<string, number>>): string[] {
+// Every augment the Datenkrake may take, one entry per stack. Stats come first in id order, then
+// the mechanics in the order they were taken.
+export function eligibleAugments(build: PlayerBuild): string[] {
   const ids: string[] = []
-  for (const id of Object.keys(STAT_INVERSE).sort()) for (let i = 0; i < (statStacks[id] ?? 0); i++) ids.push(id)
+  const stacks = statStacks(build)
+  for (const id of Object.keys(stacks).sort()) for (let i = 0; i < stacks[id]; i++) ids.push(id)
   for (const id of build.mechanics) ids.push(`mechanic.${id}`)
   return ids
 }
 
-// The build without one stack of `cardId`. An ability card also leaves its slot, which stays empty
-// for the next ability card.
+// The build without one stack of `cardId`. A stat stack goes by replaying the stat log without it
+// (`removeStatStack`), which stays exact at the stat limits and under corrupted augments. An
+// ability card also leaves its slot, which stays empty for the next ability card.
 export function removeAugment(build: PlayerBuild, cardId: string): PlayerBuild {
-  const stat = STAT_INVERSE[cardId]
-  if (stat) return stat(build)
+  if (cardId.startsWith('stat.')) return removeStatStack(build, cardId)
   if (!cardId.startsWith('mechanic.')) return build
   const id = cardId.slice('mechanic.'.length) as MechanicId
   if (!build.mechanics.includes(id)) return build
-  const undone = MECHANIC_INVERSE[id]?.(build) ?? build
-  return {
-    ...undone,
-    mechanics: undone.mechanics.filter((owned) => owned !== id),
-    abilitySlots: (ABILITY_IDS as readonly string[]).includes(id) ? undone.abilitySlots.map((slot) => (slot === id ? null : slot)) : undone.abilitySlots,
-  }
+  // Data Reuse and Open Access change the build besides being owned; the replay undoes that too.
+  return recomputeStats({
+    ...build,
+    mechanics: build.mechanics.filter((owned) => owned !== id),
+    abilitySlots: (ABILITY_IDS as readonly string[]).includes(id) ? build.abilitySlots.map((slot) => (slot === id ? null : slot)) : build.abilitySlots,
+  })
 }
 
 export interface DatenkrakeDeal {
@@ -65,8 +44,8 @@ export interface DatenkrakeDeal {
 
 // The "Submit" outcome: a random eligible augment out, a random corrupted augment in. Null when
 // there is nothing to take or nothing left to give.
-export function submitToDatenkrake(build: PlayerBuild, statStacks: Readonly<Record<string, number>>, rng: Rng): DatenkrakeDeal | null {
-  const pool = eligibleAugments(build, statStacks)
+export function submitToDatenkrake(build: PlayerBuild, rng: Rng): DatenkrakeDeal | null {
+  const pool = eligibleAugments(build)
   const choices = corruptedChoices(build)
   if (pool.length === 0 || choices.length === 0) return null
   const taken = rng.pick(pool)
@@ -74,8 +53,8 @@ export function submitToDatenkrake(build: PlayerBuild, statStacks: Readonly<Reco
   return { build: applyCorrupted(removeAugment(build, taken), given), taken, given }
 }
 
-export function canSubmit(build: PlayerBuild, statStacks: Readonly<Record<string, number>>): boolean {
-  return eligibleAugments(build, statStacks).length > 0 && corruptedChoices(build).length > 0
+export function canSubmit(build: PlayerBuild): boolean {
+  return eligibleAugments(build).length > 0 && corruptedChoices(build).length > 0
 }
 
 export type DatenkrakeMood = 'arrive' | 'grab' | 'fight' | 'submit' | 'deal' | 'mock' | 'bridge' | 'lift' | 'eula' | 'cookie'

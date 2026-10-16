@@ -78,20 +78,6 @@ export function lootSourceText(plan: RunPlan, index: number, bossLabel: string):
   return `looted from the FAIR trader in the waystation after boss ${bossLabel}${step}`
 }
 
-// How many stacks of each stat card the run still holds: every level-up pick and purchase, less
-// the ones the Datenkrake took. The build itself only knows their sum.
-export function statStacks(records: readonly LevelUpRecord[]): Record<string, number> {
-  const stacks: Record<string, number> = {}
-  for (const record of records) {
-    const given = record.refined?.fromId
-    if (given?.startsWith('stat.')) stacks[given] = Math.max(0, (stacks[given] ?? 0) - 1)
-    const id = record.cardId
-    if (!id?.startsWith('stat.') || record.datenkrake === 'fought') continue
-    stacks[id] = Math.max(0, (stacks[id] ?? 0) + (record.datenkrake === 'taken' ? -1 : 1))
-  }
-  return stacks
-}
-
 // Entries stay in level order whatever order they arrive in.
 export function appendLevelUp(history: readonly LevelUpRecord[], record: LevelUpRecord): LevelUpRecord[] {
   const next = [...history, record]

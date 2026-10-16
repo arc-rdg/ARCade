@@ -2,8 +2,9 @@ import { ARC } from '@nfdi4plants/arctrl'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { buildProvenanceIndex } from '../../../src/arc/provenance/buildIndex'
 import type { RunPlan } from '../../../src/game/contracts/run'
+import { statStacks } from '../../../src/game/model/progression'
 import { planRun } from '../../../src/game/model/run'
-import { historyRow, runRecap, statStacks } from '../../../src/game/phaser/scenes/levelHistory'
+import { historyRow, runRecap } from '../../../src/game/phaser/scenes/levelHistory'
 import { RunDirector } from '../../../src/game/phaser/scenes/RunDirector'
 import { crateJson } from '../../helpers/sampleCrate'
 
@@ -52,7 +53,7 @@ describe('SWATE (deprecated) in a run', () => {
     const entry = runRecap(director.levelHistory).at(-1)
     expect(entry).toMatchObject({ tag: 'Refined', name: 'Impact Factor → Fast Track', note: '10 fragments', refined: true })
     // The stack counts follow, so the Datenkrake sees the swapped-in card and not the old one.
-    expect(statStacks(director.levelHistory)).toEqual({ 'stat.sharpened': 1, 'stat.swiftFeet': 1 })
+    expect(statStacks(director.build)).toEqual({ 'stat.sharpened': 1, 'stat.swiftFeet': 1 })
   })
 
   it('does nothing without swaps left or without the fragments', () => {

@@ -1,6 +1,6 @@
 import type { PlayerBuild, PowerUpCard } from '../../contracts/progression'
 import type { Rng } from '../../contracts/rng'
-import { applyCard, canApply, createBuild } from './build'
+import { addXp, applyCard, canApply, createBuild, xpForNextLevel } from './build'
 import { CARDS } from './catalog'
 
 // The FAIR trader can be attacked. Three strikes get a warning each, the fourth starts a fight
@@ -112,12 +112,12 @@ export function traderBuild(level: number, rng: Rng): PlayerBuild {
   build = applyCard(build, rng.pick(legendaryWeaponCards('light')).id)
   build = applyCard(build, rng.pick(legendaryWeaponCards('heavy')).id)
   for (const card of LEGENDARY_AUGMENTS) build = applyCard(build, card.id)
-  for (let next = 2; next <= level; next++) {
-    const maxHp = Math.round(build.stats.maxHp * 1.1)
-    build = { ...build, level: next, stats: { ...build.stats, maxHp } }
+  while (build.level < level) {
+    build = addXp(build, xpForNextLevel(build.level)).build
     const commons = COMMONS.filter((card) => canApply(build, card.id))
     if (commons.length > 0) build = applyCard(build, rng.pick(commons).id)
   }
+  // The factor stays out of the stat log. He never loses a card, so his stats are never replayed.
   const maxHp = Math.round(build.stats.maxHp * TRADER_HP_FACTOR)
   return { ...build, xp: 0, hp: maxHp, stats: { ...build.stats, maxHp } }
 }

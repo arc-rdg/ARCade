@@ -40,6 +40,7 @@ const TEST_BUILD: PlayerBuild = {
   abilitySlots: [null, null, null, null],
   offerSize: 3,
   corrupted: [],
+  statLog: [],
 }
 
 const TOGGLES: Record<string, MechanicId> = {

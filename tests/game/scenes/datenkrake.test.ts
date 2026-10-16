@@ -2,9 +2,9 @@ import { ARC } from '@nfdi4plants/arctrl'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { buildProvenanceIndex } from '../../../src/arc/provenance/buildIndex'
 import type { RunPlan } from '../../../src/game/contracts/run'
-import { applyCorrupted } from '../../../src/game/model/progression'
+import { applyCorrupted, statStacks } from '../../../src/game/model/progression'
 import { planRun } from '../../../src/game/model/run'
-import { historyRow, runRecap, statStacks } from '../../../src/game/phaser/scenes/levelHistory'
+import { historyRow, runRecap } from '../../../src/game/phaser/scenes/levelHistory'
 import { RunDirector } from '../../../src/game/phaser/scenes/RunDirector'
 import { crateJson } from '../../helpers/sampleCrate'
 
@@ -33,9 +33,9 @@ function inWaystation(): RunDirector {
 }
 
 describe('the Datenkrake in a run', () => {
-  it('counts the stat stacks the run took from the level history', () => {
+  it('counts the stat stacks the run took', () => {
     const director = inWaystation()
-    expect(statStacks(director.levelHistory)).toEqual({ 'stat.sharpened': 2 })
+    expect(statStacks(director.build)).toEqual({ 'stat.sharpened': 2 })
     expect(director.datenkrakeHasPrey()).toBe(true)
   })
 
@@ -66,7 +66,7 @@ describe('the Datenkrake in a run', () => {
     const recap = runRecap(director.levelHistory).slice(-2)
     expect(recap.map((entry) => entry.datenkrake)).toEqual(['taken', 'corrupted'])
     // A stat stack the kraken took is gone from the count, so it cannot be taken twice.
-    if (deal.taken === 'stat.sharpened') expect(statStacks(director.levelHistory)).toEqual({ 'stat.sharpened': 1 })
+    if (deal.taken === 'stat.sharpened') expect(statStacks(director.build)).toEqual({ 'stat.sharpened': 1 })
   })
 
   it('makes the same deal for the same run and choices', () => {

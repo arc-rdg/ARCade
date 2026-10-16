@@ -190,6 +190,6 @@ describe('legendary weapon cards', () => {
 
   it('are never taken by the Datenkrake', () => {
     const build = applyCard(applyCard(createBuild(), 'weapon.arcCommander'), 'weapon.publicationPress')
-    expect(eligibleAugments(build, {}).some((id) => id.startsWith('weapon.'))).toBe(false)
+    expect(eligibleAugments(build).some((id) => id.startsWith('weapon.'))).toBe(false)
   })
 })

@@ -95,6 +95,11 @@ export interface PlayerBuild {
   offerSize: number
   // Given by the Datenkrake, in the order received.
   corrupted: CorruptedId[]
+  // Everything that changed the stats, in order: one entry per stat card stack ('stat.sharpened'),
+  // 'level' per level gained, 'corrupted.<id>' per corrupted augment and 'cookie' per Accept All
+  // Cookies kill. The stats are this log replayed from the base build (`replayStats` in
+  // model/progression/build.ts), so taking a stack out is exact.
+  statLog: string[]
 }
 
 export interface PowerUpCard {
