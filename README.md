@@ -93,7 +93,7 @@ Until the package is on npm, install a release tarball (pin the version):
 npm i https://github.com/arc-rdg/ARCade/releases/download/v0.1.0/arc-rdg-arcade-0.1.0.tgz
 ```
 
-It is the same tarball `npm pack` produces, so it is what npm would serve. React and
+It is the tarball `npm pack` produces, the same one npm would serve. React and
 `@nfdi4plants/arctrl` are optional peers, as described under Embedding.
 
 ## Development
@@ -116,7 +116,7 @@ app), `tests`.
 
 ## Publishing
 
-The package is not published yet and is marked `"private": true` so that it cannot be by accident.
+The package is not published yet and is marked `"private": true` so it cannot be published by accident.
 To publish: create the `@arc-rdg` organisation on npm, remove `"private": true` from
 `package.json`, run `npm run build && npm run pack:check`, then `npm publish --access public`.
 

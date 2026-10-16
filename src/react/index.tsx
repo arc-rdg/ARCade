@@ -9,8 +9,8 @@ export interface ArcadeProps extends ArcadeOptions {
   style?: CSSProperties
 }
 
-// Fills its parent. The game is mounted once per mount of the component; a new title, provenance or
-// seed goes through handle.update, the other options are read when the game mounts.
+// Fills its parent. The game is mounted once per mount of the component. A new title, provenance or
+// seed goes through handle.update; the other options are read when the game mounts.
 export function Arcade({ className, style, onEvent, ...options }: ArcadeProps) {
   const host = useRef<HTMLDivElement>(null)
   const handle = useRef<ArcadeHandle | null>(null)
