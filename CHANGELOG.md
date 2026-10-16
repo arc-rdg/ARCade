@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.3 - 2026-10-16
+
+### ✨ Added
+
+- The start screen shows the version in a corner. Click it to read the changelog inside the arcade.
+- Small boxes (compact layouts) have a Settings gear next to the fullscreen button, so you can rebind keys there too.
+- Settings are also reachable from the pause menu during a run. The game stays paused while you rebind, and Close brings you back to the pause menu.
+
 ## 0.1.2 - 2026-10-16
 
 ### 🐛 Fixed
