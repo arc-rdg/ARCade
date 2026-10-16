@@ -113,7 +113,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     screenEl.style.setProperty('--scale', String(scale))
     // The start screen shrinks until its content fits the box, down to a floor. Below that it scrolls.
     if (mode !== 'menu') return
-    for (let step = 0; step < 4 && scale > MIN_FIT_SCALE && screenEl.scrollHeight > screenEl.clientHeight; step++) {
+    for (let step = 0; step < 8 && scale > MIN_FIT_SCALE && screenEl.scrollHeight > screenEl.clientHeight; step++) {
       scale = Math.max(MIN_FIT_SCALE, scale * (screenEl.clientHeight / screenEl.scrollHeight))
       screenEl.style.setProperty('--scale', String(scale))
     }
