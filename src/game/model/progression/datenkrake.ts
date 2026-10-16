@@ -145,9 +145,9 @@ export const DATENKRAKE_LINES: Record<DatenkrakeMood, readonly string[]> = {
     'I have read and agree. (I have not.)',
   ],
   cookie: [
-    'Accept all cookies? [Accept] [Accept all]',
-    'We value your privacy. Please wait.',
-    'Cookie banner! Clicking Accept...',
+    'Fine. We accepted for you.',
+    'Too slow. Accepted all.',
+    'No answer counts as yes. Terms apply.',
   ],
 }
 

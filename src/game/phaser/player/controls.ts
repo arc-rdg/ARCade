@@ -26,8 +26,9 @@ export interface ControlPresses {
 
 export interface Controls {
   // One fixed step of the attack machine and then the motor. `input` is what the motor reads, empty
-  // while not controllable. Writes the motor state in place.
-  step(input: MotorInput, presses: ControlPresses, controllable: boolean, attackSpeed: number, dtMs: number): void
+  // while not controllable. Writes the motor state in place. With `attacksBlocked` the light and
+  // heavy presses are dropped, not buffered, so they cannot fire once the block ends.
+  step(input: MotorInput, presses: ControlPresses, controllable: boolean, attackSpeed: number, dtMs: number, attacksBlocked?: boolean): void
   // Turns the mage towards the cursor when an attack starts. `cursorDx` is the cursor x minus the
   // mage x. Does nothing unless the pointer was used lately, so keyboard play and the trader AI keep
   // the held direction.
@@ -51,7 +52,7 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
   const lockedInput: MotorInput = { held: NO_HELD, pressed: NO_HELD, released: NO_HELD }
 
   return {
-    step(input, presses, controllable, attackSpeed, dtMs) {
+    step(input, presses, controllable, attackSpeed, dtMs, attacksBlocked = false) {
       const grounded = motorEnv.grounded
       const move = controllable ? moveStarts(motor, input, motorEnv, dtMs) : null
       const dashRuns = motor.dashMs > 0 || move === 'dash'
@@ -62,10 +63,10 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       attackEnv.dashing = dashRuns || sinceDashMs < DASH_ATTACK_GRACE_MS
       attackEnv.holdBuffer = dashRuns
       attackEnv.up = presses.up
-      attackPressed.light = controllable && presses.light
+      attackPressed.light = controllable && !attacksBlocked && presses.light
       // A second air heavy before landing is dropped, not buffered, so it cannot slam on the landing.
       attackPressed.heavy =
-        controllable && presses.heavy && !airHeavyRefused(motor, !attackEnv.grounded, presses.up, attackEnv.dashing)
+        controllable && !attacksBlocked && presses.heavy && !airHeavyRefused(motor, !attackEnv.grounded, presses.up, attackEnv.dashing)
       attacks.step(dtMs, attackPressed, attackEnv)
       const current = attacks.current()
       if (current !== seen) {

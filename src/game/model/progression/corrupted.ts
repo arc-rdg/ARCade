@@ -20,7 +20,7 @@ export const CORRUPTION = {
   inVitro: { melee: 1.6, meleeRange: 1.4, ranged: 0.4 },
   heavyMetadata: { heavy: 2.5, light: 0.5 },
   reviewer2: { every: 10, boost: 10 },
-  acceptAllCookies: { maxHpPerKill: 2, everyMs: 25000, stunMs: 1000 },
+  acceptAllCookies: { maxHpPerKill: 2, everyMs: 25000, autoAcceptMs: 8000 },
   infiniteScroll: { dashCooldown: 0.25, attackSpeed: 0.6 },
 } as const
 
@@ -135,7 +135,7 @@ export const CORRUPTED: readonly CorruptedAugment[] = [
     id: 'acceptAllCookies',
     name: 'Accept All Cookies',
     boon: 'Every kill gives +2 max HP for the rest of the run.',
-    curse: 'Every 25 s a cookie banner stops you for 1 s while you click Accept.',
+    curse: 'Every 25 s a cookie banner blocks your attacks until you accept it.',
     flavor: 'Delicious. Tracked. Delicious.',
   },
   {

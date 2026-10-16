@@ -30,6 +30,8 @@ export {
   outgoingFactor,
 } from './corrupted'
 export type { CorruptedAugment, CorruptionFlags, HitMemory } from './corrupted'
+export { COOKIE_TEXT, createCookieBanner } from './cookieBanner'
+export type { CookieBanner, CookieBannerEvent, CookieBannerTimes } from './cookieBanner'
 export { DATENKRAKE_LINES, canSubmit, eligibleAugments, fillDealLine, removeAugment, submitToDatenkrake } from './datenkrake'
 export type { DatenkrakeDeal, DatenkrakeMood } from './datenkrake'
 export {

@@ -40,6 +40,9 @@ export interface LoadoutDeps {
   // The run's Second Wind charge, which recharges when a boss falls. Without it (the sandboxes)
   // the loadout keeps its own and recharges it at the start of every boss fight.
   secondWind?: BossCharge
+  // Holds the mouse buttons back from the input layer while the cookie banner is up. Without it
+  // the loadout only blocks the attacks.
+  captureMouse?(captured: boolean): void
 }
 
 export interface Loadout {

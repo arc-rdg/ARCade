@@ -6,6 +6,7 @@ import { bindingLabel } from '../../model/input'
 import { cssColor } from '../color'
 import { preloadCoreAssets } from '../assets'
 import { createCombatWorld } from '../combat'
+import { COOKIE_SUSPEND_EVENT } from './cookieBannerEvent'
 import { createInputLayer, type InputLayer } from '../input/InputLayer'
 import type { Segment } from '../../contracts/run'
 import { INSPECT_DIM_DEPTH, PAUSE_DIM_ALPHA } from '../mobs/tuning'
@@ -103,6 +104,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.director = director
     this.holds.clear()
     this.frozen = false
+    this.game.events.emit(COOKIE_SUSPEND_EVENT, false)
     this.bannerMs = 0
     this.lookAhead = 0
     // A restarted scene keeps its clock and tween manager, so clear what an earlier hold left.
@@ -126,6 +128,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
       frame: () => this.frame,
       setBindings: () => {},
       setEnabled: () => {},
+      setMouseCaptured: () => {},
       destroy: () => {},
     }
     this.player = createPlayer(
@@ -143,6 +146,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
       // Sleeping mobs leave the combat world, so the living enemy team is the awake mobs plus whatever they or a boss summon.
       enemies: () => this.combat.livingCombatants('enemy'),
       secondWind: director.secondWind,
+      captureMouse: (captured) => this.controls.setMouseCaptured(captured),
     })
     this.loadout.sync(director.build)
     this.combat.on('kill', (event) => this.onKill(event))
@@ -283,6 +287,8 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     const frozen = this.holds.size > 0
     if (frozen === this.frozen) return
     this.frozen = frozen
+    // The cookie banner waits out pauses and overlays, hidden.
+    this.game.events.emit(COOKIE_SUSPEND_EVENT, frozen)
     this.player?.setFrozen(frozen)
     this.freezeActors(frozen)
     if (frozen) {

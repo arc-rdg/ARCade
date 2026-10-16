@@ -63,11 +63,11 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   const controls = createControls(motor, motorEnv, attacks)
   let y = 0
   const released = new Set<string>()
-  const step = (pressed: Action[] = []) => {
+  const step = (pressed: Action[] = [], attacksBlocked = false) => {
     motorEnv.grounded = y >= 0
     const set = new Set<string>(pressed)
     const presses = { light: set.has('light'), heavy: set.has('heavy'), up: false }
-    controls.step({ held: set, pressed: set, released }, presses, true, 1, STEP_MS)
+    controls.step({ held: set, pressed: set, released }, presses, true, 1, STEP_MS, attacksBlocked)
     y += (motor.vy * STEP_MS) / 1000
     if (y >= 0) {
       y = 0
@@ -87,6 +87,27 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
 }
 
 describe('createControls', () => {
+  it('drops light and heavy presses while attacks are blocked, and keeps moving and jumping', () => {
+    const { motor, attacks, started, step, wait } = setup()
+    step(['light'], true)
+    step(['heavy'], true)
+    wait(300)
+    expect(started).toEqual([])
+    expect(attacks.phase()).toBe('idle')
+    step(['jump'], true)
+    expect(motor.jumped).toBe(true)
+  })
+
+  it('does not replay a blocked press once the block ends', () => {
+    const { started, step, wait } = setup()
+    step(['light'], true)
+    step([], false)
+    wait(300)
+    expect(started).toEqual([])
+    step(['light'])
+    expect(started.length).toBe(1)
+  })
+
   it('starts a jump on the press step during the recovery of a light attack', () => {
     const { motor, attacks, step, wait } = setup()
     step(['light'])

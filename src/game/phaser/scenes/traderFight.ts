@@ -86,6 +86,7 @@ export function startTraderFight(deps: TraderFightDeps, x: number, counterY: num
     },
     setBindings() {},
     setEnabled() {},
+    setMouseCaptured() {},
     destroy() {},
   }
 

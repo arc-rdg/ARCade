@@ -6,6 +6,7 @@ import {
   CORRUPTION,
   DATENKRAKE_LINES,
   corruptionFlags,
+  createCookieBanner,
   createHitMemory,
   createLinePicker,
   incomingFactor,
@@ -13,6 +14,7 @@ import {
   type CorruptionFlags,
 } from '../../../model/progression'
 import { acquireBubble, releaseBubble } from '../../mobs/bubbles'
+import { COOKIE_BANNER_EVENT, type CookieBannerHandle } from '../../scenes/cookieBannerEvent'
 import type { Core, Feature } from './core'
 import type { DamageCorruption } from './helpers'
 
@@ -20,7 +22,7 @@ import type { DamageCorruption } from './helpers'
 // build already (applyCorrupted), the jump and air dash rules in the motor, the mirrored controls
 // in the player and the fragments in the run director. Here: the damage factors, the Shadow IT
 // dash, the Data Lake heal, the Blockchain chain and its HP cost, the Mirror Site thorns and the
-// cookie banner, plus a speech bubble over the mage for the stuns.
+// cookie banner, plus a speech bubble over the mage for the EULA and the banner's auto-accept.
 
 const CHAIN_RANGE = CORRUPTION.blockchain.rangeTiles * TILE
 const BUBBLE_MS = 1800
@@ -40,7 +42,8 @@ export function createCorruption(core: Core): CorruptionFeature {
   const lines = deps.rng.fork('corrupted-lines')
   const eulaLine = createLinePicker(DATENKRAKE_LINES.eula, lines.fork('eula'))
   const cookieLine = createLinePicker(DATENKRAKE_LINES.cookie, lines.fork('cookie'))
-  let cookieMs = 0
+  const banner = createCookieBanner()
+  let bannerShown = false
   let lastX = Number.NaN
   let bubble: Phaser.GameObjects.Text | null = null
   let bubbleMs = 0
@@ -49,6 +52,32 @@ export function createCorruption(core: Core): CorruptionFeature {
     bubble ??= acquireBubble(scene).setWordWrapWidth(BUBBLE_WRAP, true).setAlign('center')
     bubble.setText(line).setVisible(true)
     bubbleMs = BUBBLE_MS
+  }
+
+  // The banner takes the attacks and the mouse clicks for as long as it is up, and the HUD shows it.
+  // Without a HUD (the sandboxes) there is nothing to click, so it never opens.
+  const camera = scene.cameras.main
+  const handle: CookieBannerHandle = {
+    accept: () => closeBanner(banner.accept()),
+    mageBand(out) {
+      const box = player.hurtbox()
+      const view = camera.worldView
+      out.top = (box.y - view.y) / view.height
+      out.bottom = (box.bottom - view.y) / view.height
+    },
+  }
+  const closeBanner = (closed: boolean) => {
+    if (!closed || !bannerShown) return
+    bannerShown = false
+    player.setAttacksBlocked(false)
+    deps.captureMouse?.(false)
+    scene.game.events.emit(COOKIE_BANNER_EVENT, null)
+  }
+  const openBanner = () => {
+    bannerShown = true
+    player.setAttacksBlocked(true)
+    deps.captureMouse?.(true)
+    scene.game.events.emit(COOKIE_BANNER_EVENT, handle)
   }
 
   const damage: DamageCorruption = {
@@ -131,6 +160,8 @@ export function createCorruption(core: Core): CorruptionFeature {
     }),
   )
   core.own(() => {
+    banner.reset()
+    closeBanner(true)
     if (bubble) releaseBubble(scene, bubble)
     bubble = null
   })
@@ -144,6 +175,10 @@ export function createCorruption(core: Core): CorruptionFeature {
     },
     sync(build) {
       flags = corruptionFlags(build)
+      if (!flags.acceptAllCookies) {
+        banner.reset()
+        closeBanner(true)
+      }
     },
     update(dtMs) {
       if (bubbleMs > 0) {
@@ -157,10 +192,10 @@ export function createCorruption(core: Core): CorruptionFeature {
       }
       lastX = box.x
       if (flags.acceptAllCookies) {
-        cookieMs += dtMs
-        if (cookieMs >= CORRUPTION.acceptAllCookies.everyMs) {
-          cookieMs = 0
-          player.stun(CORRUPTION.acceptAllCookies.stunMs)
+        const event = banner.step(dtMs, scene.game.events.listenerCount(COOKIE_BANNER_EVENT) > 0)
+        if (event === 'opened') openBanner()
+        else if (event === 'autoAccepted') {
+          closeBanner(true)
           say(cookieLine())
         }
       }

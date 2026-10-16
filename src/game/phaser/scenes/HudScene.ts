@@ -9,6 +9,7 @@ import type { Segment } from '../../contracts/run'
 import type { StaggerState } from '../bosses'
 import { isDescription, type InspectInfo } from '../mobs'
 import type { HudControl, RunContext } from './context'
+import { CookieBannerPanel } from './CookieBannerPanel'
 import { LevelHistoryPanel } from './LevelHistoryPanel'
 import { MobInfoPanel } from './MobInfoPanel'
 import { MOB_HOVER_EVENT, MOB_INFO_EVENT, MOB_ANCHOR_KEY, type NormRect } from './mobInfoEvent'
@@ -68,6 +69,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
   private pauseButtons: Button[] = []
   private mobInfo!: MobInfoPanel
   private history!: LevelHistoryPanel
+  private cookies!: CookieBannerPanel
   private paused = false
   private overButtons = 0
 
@@ -149,6 +151,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
     this.overButtons = 0
     this.mobInfo = new MobInfoPanel(this)
     this.history = new LevelHistoryPanel(this, () => this.closeHistory())
+    this.cookies = new CookieBannerPanel(this)
     // A click pins the panel, hovering only shows it until the pointer leaves. A boss sends its
     // description ready-made, a mob its spec.
     const showInfo = (info: InspectInfo | undefined, segment: Segment | null | undefined, anchor: NormRect | undefined, pinned: boolean) => {
@@ -195,6 +198,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
     this.pauseButtons[2].setPosition(w / 2, h / 2 + 42)
     this.mobInfo.layout(view)
     this.history.layout(view)
+    this.cookies.layout(view)
     for (let i = 0; i < ABILITIES.length; i++) {
       const x = M + i * (SLOT_W + SLOT_GAP)
       const y = h - M - SLOT_H
@@ -274,6 +278,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
   }
 
   update(_time: number, delta: number) {
+    this.cookies.update()
     // The gameplay scene holds its banner time during the pause, so the banner waits with it.
     if (this.bannerMs > 0 && !this.pauseDim.visible) {
       this.bannerMs -= delta

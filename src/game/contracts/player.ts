@@ -139,8 +139,11 @@ export interface PlayerHandle extends Combatant {
   // Every hit misses the mage for this long, without the blinking of the damage invulnerability.
   // For abilities that block (Autoclave, Lab Coat).
   blockHits(ms: number): void
+  // While true, light and heavy attacks and abilities do not start, but the mage still moves. For
+  // the cookie banner of Accept All Cookies.
+  setAttacksBlocked(blocked: boolean): void
   // No moving, attacking or abilities for this long, while the world goes on. For corrupted
-  // augments (the EULA, the cookie banner). Cancels the attack in progress.
+  // augments (the EULA). Cancels the attack in progress.
   stun(ms: number): void
   isStunned(): boolean
   // Lets the body collide with a body added after it, such as a bridge of the kraken intern or an

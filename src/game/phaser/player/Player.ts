@@ -131,6 +131,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   let interceptor: ((hit: HitEvent) => boolean) | null = null
   const abilityHandlers: (AbilityHandler | null)[] = [null, null, null, null]
   const abilityCooldowns = [0, 0, 0, 0]
+  let attacksBlocked = false
   const movesets = new Map<PlayerWeaponId, WeaponMoveset>([['staff', staffMoveset]])
   const listeners = new Map<keyof PlayerEvents, Set<(payload: never) => void>>()
   const hurtbox = new Phaser.Geom.Rectangle(0, 0, W, H)
@@ -422,7 +423,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     if (controllable) {
       for (let slot = 0; slot < ABILITY_ACTIONS.length; slot++) {
         const handler = abilityHandlers[slot]
-        if (!handler || !frame.pressed.has(ABILITY_ACTIONS[slot]) || abilityCooldowns[slot] > 0) continue
+        if (!handler || attacksBlocked || !frame.pressed.has(ABILITY_ACTIONS[slot]) || abilityCooldowns[slot] > 0) continue
         if (handler.activate(contextFor(1)) === false) continue
         abilityCooldowns[slot] = handler.cooldownMs
       }
@@ -431,7 +432,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     presses.light = frame.pressed.has('light')
     presses.heavy = frame.pressed.has('heavy')
     presses.up = frame.held.has('up') && !frame.held.has('down')
-    controls.step(input, presses, controllable, build.stats.attackSpeed, dt)
+    controls.step(input, presses, controllable, build.stats.attackSpeed, dt, attacksBlocked)
     const locked = attacks.lockRemainingMs() > 0
     if (locked && !lockShown) showLock()
     lockShown = locked
@@ -690,6 +691,9 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     },
     registerMoveset(moveset) {
       movesets.set(moveset.id, moveset)
+    },
+    setAttacksBlocked(blocked) {
+      attacksBlocked = blocked
     },
     setAbilityHandler(slot, handler) {
       if (slot < 0 || slot >= abilityHandlers.length) return

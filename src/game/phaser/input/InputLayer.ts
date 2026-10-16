@@ -4,12 +4,18 @@ import type { Action, Bindings, InputFrame } from '../../contracts/input'
 import { bindingId } from '../../model/input'
 import { AIM_RECENT_MS } from '../../model/input/motor'
 
+// What the cookie banner blocks while it holds the mouse.
+const CAPTURED_ACTIONS: ReadonlySet<Action> = new Set<Action>(['light', 'heavy', 'ability1', 'ability2', 'ability3', 'ability4'])
+
 export interface InputLayer {
   // Call once per fixed step. Edges collect between calls, so a tap shorter than a step still
   // shows up. The returned frame and its sets are reused: they are valid until the next call.
   frame(): InputFrame
   setBindings(bindings: Bindings): void
   setEnabled(enabled: boolean): void
+  // While captured, mouse buttons going down are ignored: the click belongs to a screen widget (the
+  // cookie banner) and must not start an attack. Buttons already held stay held.
+  setMouseCaptured(captured: boolean): void
   destroy(): void
 }
 
@@ -25,6 +31,7 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   let pressedAcc = new Set<Action>()
   let releasedAcc = new Set<Action>()
   let enabled = true
+  let mouseCaptured = false
 
   const out = {
     held: new Set<Action>(),
@@ -89,7 +96,10 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
     canvas.focus()
     pointerUsedAt = scene.time.now
     if (!enabled || event.button > 2) return
-    press(`mouse:${event.button}`)
+    const id = `mouse:${event.button}`
+    // The cookie banner curses attacks only, so a mouse button bound to jump or dash keeps working.
+    if (mouseCaptured && (actionsByInput.get(id) ?? []).some((action) => CAPTURED_ACTIONS.has(action))) return
+    press(id)
   }
   const onMouseUp = (event: MouseEvent) => {
     if (event.button > 2) return
@@ -137,6 +147,9 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
     setBindings(next) {
       releaseAll()
       mapBindings(next)
+    },
+    setMouseCaptured(next) {
+      mouseCaptured = next
     },
     setEnabled(next) {
       if (!next) releaseAll()
