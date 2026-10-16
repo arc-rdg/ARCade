@@ -87,6 +87,14 @@ timed mechanics (summoner, spill, teleport, shield) start only while the boss st
 time and at least 2.5 s apart, the boss starts no attack while a spill is marked or burns, and the
 shield never rises in the punish window right after a heavy attack (`phaser/bosses/mechanics.ts`).
 
+The scheduler (`phaser/bosses/scheduler.ts`) idles less the worse the annotations are. After a heavy
+attack the punish window is 400 ms plus 300 ms times the quality, after a light one the gap is 150
+plus 50 ms times the quality, and every cooldown is scaled by 0.6 plus 0.4 times the quality. When
+every attack is on cooldown for longer than 250 plus 350 ms times the quality, the light attack that
+is closest to ready goes anyway. Heavy attacks keep their cooldown. A heavy rain, Crate Collapse
+included, keeps its stagger lock and its danger zone until the last drop has landed, and an attack
+that ends after a phase shift still leaves its punish window or gap.
+
 A boss arena has a row of one-way platforms, 60 units over the floor and 3 tiles wide
 (`arenaPlatforms` in `phaser/bosses/zones.ts`). A platform is a dodge, not a hiding place
 (`phaser/bosses/reach.ts`). The floor attacks miss a mage up there: the shockwave and the flood, the
