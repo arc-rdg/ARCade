@@ -5,6 +5,7 @@ import { DEPTH, PALETTE } from '../../contracts/constants'
 import { placeholderArt } from '../placeholderArt'
 import { applyDamageModifiers, type DamageModifier } from './damage'
 import { createFeedback } from './feedback'
+import { createHitStop } from './hitStop'
 import { boundsOf, facingOfVelocity, hitPoint, mirrorKnockback, overlaps, resolveShape, type Facing, type Point, type Rect } from './geometry'
 import { createProjectilePool } from './projectilePool'
 
@@ -68,7 +69,7 @@ export function createCombatWorld(scene: Phaser.Scene, options: CombatWorldOptio
   // Reused by livingCombatants, so effects that look for targets every step allocate nothing.
   const living: Combatant[] = []
   const modifiers: DamageModifier[] = []
-  let hitStopMs = 0
+  const hitStop = createHitStop()
   let destroyed = false
 
   function emit(event: 'hit' | 'kill', payload: HitEvent) {
@@ -91,7 +92,7 @@ export function createCombatWorld(scene: Phaser.Scene, options: CombatWorldOptio
     }
     const taken = target.receiveHit(event)
     if (typeof taken === 'number') event.damage = taken
-    hitStopMs = Math.max(hitStopMs, attack.spec.hitStopMs)
+    hitStop.hit(attack.spec.hitStopMs)
     feedback.hit(point, event.damage, crit)
     emit('hit', event)
     if (target.isDead() && !killed.has(target)) {
@@ -351,13 +352,11 @@ export function createCombatWorld(scene: Phaser.Scene, options: CombatWorldOptio
     update(deltaMs) {
       if (destroyed) return
       feedback.update(deltaMs)
-      if (hitStopMs > 0) hitStopMs = Math.max(0, hitStopMs - deltaMs)
-      else step(deltaMs)
+      if (!hitStop.tick(deltaMs)) step(deltaMs)
       drawDebug()
     },
-    hitStopRemainingMs() {
-      return hitStopMs
-    },
+    hitStopRemainingMs: () => hitStop.remainingMs(),
+    interruptHitStop: (pressed) => hitStop.interrupt(pressed),
     destroy,
   }
 }

@@ -81,7 +81,7 @@ function covered(shapes: HitShape[], point: { x: number; y: number }, facing: 1 
 }
 
 function poseOf(heavy: boolean, variant: AttackVariant, phase: AttackPhase = 'active', plunge = false, spinMs = 0, hold: WeaponHold = 'swing'): WeaponPose {
-  return weaponPose({ heavy, variant, plunge, spin: false, hold }, phase, spinMs, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
+  return weaponPose({ heavy, variant, plunge, spin: false, hold, startupMs: 110 }, phase, spinMs, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
 }
 
 // The newest smear copy, which sits a quarter (light) or a fifth (heavy) of the way back to the

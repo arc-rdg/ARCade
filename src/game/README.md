@@ -380,8 +380,14 @@ move's cancel window, and a press up to 250 ms after the move ended (`COMBO_GRAC
 the Triplicate finisher. Only one press waits at a time and later presses merge into it, so a
 mash stops at most one move after the last press. A longer pause, a heavy, a dash, a jump or a hit
 starts the string over.
-A move's lunge pushes the mage forward only while left or right is held. Without a direction the
-attack stays in place on the ground and keeps the air speed in the air.
+A move's lunge pushes the mage forward at the start of its active phase, for 60 ms (`LUNGE_MS` in
+`phaser/player/controls.ts`; the staff jab moves about 8 px), and only while left or right is held.
+Without a direction the attack stays in place on the ground and keeps the air speed in the air.
+On the ground a move runs the mage at half speed (`ATTACK_GROUND_SPEED`) through its startup, active
+phase and the recovery before its cancel window. Past `cancelAfterMs` the mage runs at full speed.
+A light move shows a pull-back in its startup: the weapon swings back to about -0.25 rad and 4 units
+behind the hand, formed in the first half of the startup (`phaser/player/weaponPose.ts`).
+A dash attack that keeps its momentum carries 60% of the dash speed through startup and active.
 
 Heavy pressed in the air plays the weapon's air heavy, mostly a plunge with a landing hit and a
 short landing lock. The first hit of an air heavy (the fall or the landing ring) ends the plunge and
@@ -400,8 +406,8 @@ dash heavy. Attacks with up held play an overhead version, and ranged weapons ke
 When an attack starts (every light, heavy and variant, and each hit of a combo), the mage turns to the
 side of the cursor if the pointer moved or a mouse button went down in the last 10 s (`AIM_RECENT_MS`;
 a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). So you can swing one way
-while walking the other. Facing stays locked for the rest of the attack and movement stays free.
-Lunges still push towards the facing. Without a recent pointer, and for the trader AI, which sends no
+while walking the other. Facing stays locked until the move ends, also once the cancel window lets
+the held direction through, and movement stays free. Lunges push towards the facing. Without a recent pointer, and for the trader AI, which sends no
 aim, the held direction decides as before (`aimFacing` in `model/input/motor.ts`, `faceCursor` in
 `phaser/player/controls.ts`, called from the attack start in `Player.ts`). Abilities do not turn the mage.
 The input layer reads the cursor from its own DOM listeners (`phaser/input/InputLayer.ts`), because
@@ -636,6 +642,8 @@ Click the canvas to give it keyboard focus.
 | Boss freeze and slow rules | `phaser/combat/status.ts` |
 | Boss portal timeline (forming time, flash, sparks) | `phaser/scenes/portalSpawn.ts` |
 | Player i-frames and flinch | `phaser/player/Player.ts` |
+| Presses carried through the end of a flinch or stun (120 ms), attack lunge, ground attack speed | `phaser/player/controls.ts` (`CARRY_WINDOW_MS`, `LUNGE_MS`, `ATTACK_GROUND_SPEED`) |
+| Hit-stop, cut short by a dash or jump press | `phaser/combat/hitStop.ts` |
 | Pit damage, banner time, mob wake distance, monster prewarm rate | `phaser/scenes/StretchScene.ts` |
 | Level layout | `phaser/scenes/levelGen.ts` |
 

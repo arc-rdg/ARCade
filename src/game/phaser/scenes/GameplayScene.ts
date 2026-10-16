@@ -206,6 +206,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     if (this.frozen) return
     const dt = deltaSeconds * 1000
     this.combat.update(dt)
+    this.combat.interruptHitStop(this.frame.pressed)
     const stopped = this.combat.hitStopRemainingMs() > 0
     // A kill in this step may have opened the level-up and held the world.
     this.player.setFrozen(stopped || this.frozen)

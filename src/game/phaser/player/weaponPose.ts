@@ -40,10 +40,19 @@ export interface PosedAttack {
   // The move spins the weapon (AttackMove.spin).
   spin: boolean
   hold: WeaponHold
+  // The startup phase length in ms, already divided by the attack speed.
+  startupMs: number
 }
 
 // Radians per ms of a spinning move (dash heavies, the combo finisher).
 export const SPIN_RATE = 0.03
+
+// A light swing pulls the weapon back during its startup. The pose is formed over this share of
+// the startup, with an ease-out, so even a 110 ms startup shows the wind-up.
+const PULL_BACK_SHARE = 0.5
+const PULL_BACK_ANGLE = -0.25
+const PULL_BACK_X = -4
+const IDLE_ANGLE = 0.35
 
 // Writes into `out`, so the render loop allocates nothing. spinMs is the move's own clock.
 export function weaponPose(attack: PosedAttack | null, phase: AttackPhase, spinMs: number, out: WeaponPose): WeaponPose {
@@ -72,6 +81,11 @@ export function weaponPose(attack: PosedAttack | null, phase: AttackPhase, spinM
     out.y = phase === 'active' ? -24 : -16
     out.angle = phase === 'startup' ? 0.9 : phase === 'active' ? Math.PI / 2 : 1.1
   } else if (heavy) out.angle = phase === 'startup' ? -0.6 : phase === 'active' ? 2 : 1.2
-  else out.angle = 0.35 + Math.max(0, poke) * 1.1
+  else if (phase === 'startup' && attack) {
+    const t = Math.min(1, spinMs / Math.max(1, attack.startupMs * PULL_BACK_SHARE))
+    const eased = 1 - (1 - t) * (1 - t)
+    out.angle = IDLE_ANGLE + (PULL_BACK_ANGLE - IDLE_ANGLE) * eased
+    out.x = 8 + PULL_BACK_X * eased
+  } else out.angle = IDLE_ANGLE + Math.max(0, poke) * 1.1
   return out
 }

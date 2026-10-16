@@ -22,7 +22,7 @@ function move(name: string, timing: Partial<AttackMove>): AttackMove {
 }
 
 // Staff-like timings: a quick jab combo and a slow slam that locks.
-const LIGHT = [move('jab', {}), move('jab', {}), move('thrust', { startupMs: 80, activeMs: 90, recoveryMs: 220, cancelAfterMs: 130 })]
+const LIGHT = [move('jab', { lunge: 140 }), move('jab', {}), move('thrust', { startupMs: 80, activeMs: 90, recoveryMs: 220, cancelAfterMs: 130 })]
 const HEAVY = [move('slam', { startupMs: 280, activeMs: 120, recoveryMs: 320, cancelAfterMs: 200, allowedInAir: false, lockMs: 150 })]
 const DASH_LIGHT = move('lunge', { startupMs: 40, activeMs: 90, recoveryMs: 120, cancelAfterMs: 0, keepsMomentum: true })
 const DASH_HEAVY = move('comet', { startupMs: 70, activeMs: 160, recoveryMs: 220, cancelAfterMs: 150, lockMs: 150 })
@@ -63,27 +63,38 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   const controls = createControls(motor, motorEnv, attacks)
   let y = 0
   const released = new Set<string>()
-  const step = (pressed: Action[] = [], attacksBlocked = false) => {
+  let x = 0
+  // Held keys stay held between steps, as on a keyboard. A press is held too, as before.
+  let heldKeys: Action[] = []
+  const stepWith = (pressed: Action[], attacksBlocked: boolean, controllable: boolean, controlInMs: number) => {
     motorEnv.grounded = y >= 0
     const set = new Set<string>(pressed)
+    const held = new Set<string>([...pressed, ...heldKeys])
     const presses = { light: set.has('light'), heavy: set.has('heavy'), up: false }
-    controls.step({ held: set, pressed: set, released }, presses, true, 1, STEP_MS, attacksBlocked)
+    controls.step({ held, pressed: set, released }, presses, controllable, 1, STEP_MS, attacksBlocked, controlInMs)
+    x += (motor.vx * STEP_MS) / 1000
     y += (motor.vy * STEP_MS) / 1000
     if (y >= 0) {
       y = 0
       if (motor.vy > 0) motor.vy = 0
     }
   }
+  const step = (pressed: Action[] = [], attacksBlocked = false) => stepWith(pressed, attacksBlocked, true, 0)
   const wait = (ms: number) => {
     for (let n = Math.round(ms / STEP_MS); n > 0; n--) step()
   }
+  const hold = (...keys: Action[]) => {
+    heldKeys = keys
+  }
+  // A step while hurt: the mage cannot act for another `controlInMs`.
+  const hurtStep = (controlInMs: number, pressed: Action[] = []) => stepWith(pressed, false, false, controlInMs)
   // What Player does when the first hit of an air heavy lands. `chains` is Serial Dilution.
   const bounce = (chains = false) => {
     if (!attacks.onOwnHit()) return false
     motor.vy = -JUMP_VELOCITY * plungeBounced(motor, chains)
     return true
   }
-  return { motor, motorEnv, attacks, started, cursor, step, wait, bounce, airborne: () => y < 0 }
+  return { motor, motorEnv, attacks, started, cursor, step, wait, hold, hurtStep, bounce, x: () => x, airborne: () => y < 0 }
 }
 
 describe('createControls', () => {
@@ -355,6 +366,88 @@ describe('Serial Dilution', () => {
     expect(heights).toEqual(CHAIN_BOUNCE_HEIGHTS.map((h) => expect.closeTo(h, 6)))
     for (let i = 1; i < heights.length; i++) expect(heights[i]).toBeLessThan(heights[i - 1])
     expect(bounceFactor(1, false)).toBe(PLUNGE_BOUNCE_FACTOR)
+  })
+})
+
+describe('player feel', () => {
+  it('fires a jump pressed 100 ms before a flinch ends on the first free step', () => {
+    const { motor, hurtStep, step } = setup()
+    hurtStep(100, ['jump'])
+    for (let left = 90; left > 0; left -= STEP_MS) hurtStep(left)
+    expect(motor.jumped).toBe(false)
+    step()
+    expect(motor.jumped).toBe(true)
+  })
+
+  it('carries a dash and an attack pressed late in a stun, and drops earlier presses', () => {
+    const late = setup()
+    late.hurtStep(80, ['dash', 'light'])
+    late.hurtStep(70)
+    late.step()
+    expect(late.motor.dashed).toBe(true)
+
+    const lightRig = setup()
+    lightRig.hurtStep(80, ['light'])
+    lightRig.step()
+    expect(lightRig.started.map((s) => s.name)).toEqual(['jab'])
+
+    const early = setup()
+    early.hurtStep(300, ['jump', 'light'])
+    early.hurtStep(100)
+    early.step()
+    expect(early.motor.jumped).toBe(false)
+    expect(early.started).toEqual([])
+  })
+
+  it('runs at half speed while a move starts and strikes, and at full speed once it can be cancelled', () => {
+    const { motor, motorEnv, attacks, step, hold } = setup()
+    hold('right')
+    step(['light'])
+    let guarded = 0
+    while (attacks.phase() !== 'idle') {
+      step()
+      if (attacks.canCancel()) {
+        expect(motorEnv.speedScale).toBe(1)
+      } else if (attacks.phase() !== 'idle') {
+        expect(motorEnv.speedScale).toBe(0.5)
+        // The lunge pushes faster than the half speed, for its short window only.
+        if (attacks.moveElapsedMs() > 160) expect(motor.vx).toBeLessThanOrEqual(MOTOR.runSpeed * 0.5 + 1)
+        guarded++
+      }
+    }
+    expect(guarded).toBeGreaterThan(5)
+  })
+
+  it('keeps the aim facing through the recovery while running the other way', () => {
+    const { motor, attacks, cursor, step, wait, hold } = setup()
+    cursor.dx = 200
+    cursor.recent = true
+    step(['light'])
+    expect(motor.facing).toBe(1)
+    hold('left')
+    // Well past the cancel window of the first jab, still in its recovery.
+    wait(220)
+    expect(attacks.canCancel()).toBe(true)
+    expect(attacks.phase()).toBe('recovery')
+    expect(motor.facing).toBe(1)
+    wait(200)
+    expect(attacks.phase()).toBe('idle')
+    step()
+    expect(motor.facing).toBe(-1)
+  })
+
+  it('moves at least 8 px with a held light lunge, and stays put without a direction', () => {
+    const lunging = setup()
+    lunging.hold('right')
+    lunging.step(['light'])
+    const before = lunging.x()
+    lunging.wait(110 + 85)
+    expect(lunging.x() - before).toBeGreaterThanOrEqual(8)
+
+    const standing = setup()
+    standing.step(['light'])
+    standing.wait(300)
+    expect(standing.x()).toBe(0)
   })
 })
 

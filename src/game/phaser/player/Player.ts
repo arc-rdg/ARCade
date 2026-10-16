@@ -6,13 +6,13 @@ import type { Action, InputFrame } from '../../contracts/input'
 import type { AbilityHandler, AttackContext, PlayerEvents, PlayerHandle, WeaponMoveset } from '../../contracts/player'
 import type { PlayerBuild, PlayerWeaponId, WeaponSlot } from '../../contracts/progression'
 import { CORRUPTION } from '../../model/progression/corrupted'
-import { EMPTY_MOTOR_INPUT, JUMP_VELOCITY, MOTOR, createMotorState, plungeBounced, runSpeed } from '../../model/input/motor'
+import { JUMP_VELOCITY, MOTOR, createMotorState, plungeBounced, runSpeed } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { InputLayer } from '../input/InputLayer'
 import { applySpriteRef } from '../art'
 import { createAttackMachine } from './attacks'
 import type { AttackPhase } from './attacks'
-import { createControls, lungeVelocity } from './controls'
+import { createControls } from './controls'
 import { bodyOf, isOneWay } from './oneWay'
 import { staffMoveset } from './staffMoveset'
 import { heldSlot, holdOf, weaponPose } from './weaponPose'
@@ -22,6 +22,8 @@ import { airHeavyOf, dashHeavyOf, dashLightOf, upHeavyOf, upLightOf } from './we
 export const PLAYER_HURTBOX = { width: 18, height: 42 }
 const DAMAGE_IFRAMES_MS = 700
 const FLINCH_MS = 180
+// The share of the dash speed a dash attack carries through its startup and active phases.
+const DASH_ATTACK_MOMENTUM = 0.6
 // The longest a freeze holds the mage, as a stun.
 const PLAYER_FREEZE_MS = 600
 const DROP_THROUGH_MS = 150
@@ -197,6 +199,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   // The weapon art stands upright with the grip at its origin, so the sprite rotates around the hand.
   const weapon = scene.add.sprite(0, 0, MAGE_TEXTURE)
   let weaponShown = ''
+  let weaponFront = false
   let weaponScaleX = 1
   // Copies of the held weapon at its last few poses, shown while a melee move is active. They sit
   // in the container, so they trail the swing itself and not the run or the dash.
@@ -272,7 +275,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       if (variant === 'dash') {
         // The attack takes over from the dash. Its iframes run out on their own timer.
         const speed = runSpeed(motorEnv)
-        if (move.keepsMomentum) momentumVx = motor.dashDir * speed * MOTOR.dashSpeedFactor
+        if (move.keepsMomentum) momentumVx = motor.dashDir * speed * MOTOR.dashSpeedFactor * DASH_ATTACK_MOMENTUM
         else motor.vx = motor.dashDir * speed
         motor.dashMs = 0
         controls.endDashGrace()
@@ -281,7 +284,6 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     },
     onActive(slot, comboIndex, move) {
       move.onActive(contextFor(build.weapons[slot].tier))
-      if (move.lunge) motor.vx = lungeVelocity(move.lunge, motor.facing, held.has('left'), held.has('right'), grounded, motor.vx)
       if (slot === 'heavy' && !grounded && attacks.current()?.variant === 'up') motor.vy = Math.min(motor.vy, -RISING_HOP_SPEED)
       emit('attackActive', { slot, comboIndex, move })
     },
@@ -409,7 +411,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     }
 
     const controllable = flinchMs <= 0 && stunMs <= 0 && hp > 0
-    let input: MotorInput = controllable ? frame : EMPTY_MOTOR_INPUT
+    let input: MotorInput = frame
     if (controllable && grounded && onOneWay && !motorEnv.mechanics.noJump && frame.held.has('down') && frame.pressed.has('jump')) {
       dropMs = DROP_THROUGH_MS
       dropPressed.clear()
@@ -432,7 +434,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     presses.light = frame.pressed.has('light')
     presses.heavy = frame.pressed.has('heavy')
     presses.up = frame.held.has('up') && !frame.held.has('down')
-    controls.step(input, presses, controllable, build.stats.attackSpeed, dt, attacksBlocked)
+    controls.step(input, presses, controllable, build.stats.attackSpeed, dt, attacksBlocked, hp > 0 ? Math.max(flinchMs, stunMs) : Infinity)
     const locked = attacks.lockRemainingMs() > 0
     if (locked && !lockShown) showLock()
     lockShown = locked
@@ -504,7 +506,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   }
 
   const pose: WeaponPose = { x: 0, y: 0, angle: 0, poke: 0, visible: true }
-  const posed: PosedAttack = { heavy: false, variant: 'ground', plunge: false, spin: false, hold: 'swing' }
+  const posed: PosedAttack = { heavy: false, variant: 'ground', plunge: false, spin: false, hold: 'swing', startupMs: 0 }
   const onRender = (_time: number, delta: number) => {
     if (destroyed) return
     container.setPosition(body.center.x, body.bottom)
@@ -538,6 +540,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       posed.plunge = attack.move.plunge !== undefined
       posed.spin = attack.move.spin === true
       posed.hold = weaponHolds[attack.slot]
+      posed.startupMs = attack.move.startupMs / build.stats.attackSpeed
     }
     // The move's own clock stops in hit-stop, so a spin stops with it.
     const { poke } = weaponPose(attack ? posed : null, phase, attacks.moveElapsedMs(), pose)
@@ -546,6 +549,13 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     mage.setScale(baseScale * squashX * motor.facing, baseScale * squashY * breathe)
     mage.setRotation(lean + (poke > 0 && !up ? poke * 0.08 * motor.facing : 0))
 
+    // The pulled-back weapon of a light swing crosses the body, so it is drawn in front of the
+    // mage for the startup and goes back behind it for the strike.
+    const weaponInFront = phase === 'startup' && !heavy && !up && weaponHolds[heldSlot(attack)] === 'swing'
+    if (weaponInFront !== weaponFront) {
+      weaponFront = weaponInFront
+      container.moveTo(weapon, weaponFront ? container.length - 1 : smears.length)
+    }
     showWeapon(heldSlot(attack))
     weapon.setVisible(pose.visible)
     weapon.setPosition(motor.facing * pose.x, pose.y + bob)

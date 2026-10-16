@@ -126,5 +126,7 @@ export interface CombatWorld {
   update(deltaMs: number): void
   // Scenes freeze their actors while this is above zero.
   hitStopRemainingMs(): number
+  // A dash or jump among the pressed actions ends the hit-stop at once.
+  interruptHitStop(pressed: ReadonlySet<string>): void
   destroy(): void
 }

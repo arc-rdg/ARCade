@@ -11,7 +11,7 @@ const STEP_MS = 10
 const GROUND = { grounded: true, attackSpeed: 1, canStart: true }
 
 function pose(hold: WeaponHold, phase: AttackPhase, variant: AttackVariant = 'ground', spinMs = 0): WeaponPose {
-  return weaponPose({ heavy: true, variant, plunge: false, spin: false, hold }, phase, spinMs, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
+  return weaponPose({ heavy: true, variant, plunge: false, spin: false, hold, startupMs: 110 }, phase, spinMs, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
 }
 
 // The staff's moves stand in for both slots, so the heavy move is the real slam.
@@ -83,5 +83,20 @@ describe('heavy weapon holds', () => {
   it('leaves the staff slam and its dash spin as they were', () => {
     expect(pose('swing', 'active').angle).toBe(2)
     expect(pose('swing', 'active', 'dash', 100).angle).toBeCloseTo(100 * 0.03)
+  })
+})
+
+describe('light swing wind-up', () => {
+  const at = (spinMs: number) =>
+    weaponPose({ heavy: false, variant: 'ground', plunge: false, spin: false, hold: 'swing', startupMs: 110 }, 'startup', spinMs, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
+
+  it('pulls the weapon back before the strike, formed early in the startup', () => {
+    const idle = weaponPose(null, 'idle', 0, { x: 0, y: 0, angle: 0, poke: 0, visible: true })
+    expect(at(0).angle).toBeCloseTo(idle.angle)
+    expect(at(55).angle).toBeCloseTo(-0.25)
+    expect(at(55).x).toBeCloseTo(idle.x - 4)
+    // Over half of the pull-back is in place by a quarter of the startup.
+    expect(idle.angle - at(27).angle).toBeGreaterThan((idle.angle + 0.25) * 0.7)
+    expect(at(110).angle).toBeLessThan(0)
   })
 })

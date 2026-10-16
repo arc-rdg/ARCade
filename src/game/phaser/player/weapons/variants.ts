@@ -82,6 +82,7 @@ function overhead(real: CombatWorld): CombatWorld {
     addDamageModifier: (modifier) => real.addDamageModifier(modifier),
     update: (deltaMs) => real.update(deltaMs),
     hitStopRemainingMs: () => real.hitStopRemainingMs(),
+    interruptHitStop: (pressed) => real.interruptHitStop(pressed),
     destroy: () => real.destroy(),
   }
   overheads.set(real, world)
