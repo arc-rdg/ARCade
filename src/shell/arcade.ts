@@ -352,7 +352,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     show(
       h(
         'div',
-        { class: 'arcade-screen' },
+        { class: 'arcade-screen arcade-screen-settings' },
         scene(),
         h(
           'div',
@@ -570,6 +570,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   }
   if (fullscreenButton) {
     syncFullscreenButton()
+    root.setAttribute('data-fullscreen', '')
     root.append(fullscreenButton)
     doc.addEventListener('fullscreenchange', onFullscreenChange)
   }

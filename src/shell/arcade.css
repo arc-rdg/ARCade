@@ -569,6 +569,11 @@
   opacity: 1;
 }
 
+/* The settings start below the fullscreen button instead of under it. */
+.arcade-root[data-fullscreen] .arcade-screen-settings {
+  padding-top: calc(max(14px, 1.6cqmin) * 2.4 + 16px);
+}
+
 /* A browser's fullscreen box is the root itself. */
 .arcade-root:fullscreen {
   width: 100%;

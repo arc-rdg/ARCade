@@ -27,8 +27,8 @@ export function boxFor(width: number, height: number, em: number): Box {
   const scale = compact
     ? Math.min(width / 300, height / 200)
     : stacked
-      ? Math.min(width / 420, height / 700)
-      : Math.min(width / 900, height / 560)
+      ? Math.min(width / 420, height / 760)
+      : Math.min(width / 900, height / 640)
   return { width, height, layout, scale: clamp(scale) }
 }
 
