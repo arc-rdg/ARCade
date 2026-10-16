@@ -1,14 +1,15 @@
 import Phaser from 'phaser'
 import { PALETTE, SCENE } from '../../contracts/constants'
-import type { PlayerWeaponId, PowerUpCard } from '../../contracts/progression'
+import type { PowerUpCard } from '../../contracts/progression'
 import { hashString } from '../../contracts/rng'
-import { weaponName, weaponRelation, type LevelUpSummary, type WeaponRelation } from '../../model/progression'
+import { relationLabel, weaponRelation, type LevelUpSummary, type WeaponRelation } from '../../model/progression'
 import { CARD_HEIGHT, CARD_WIDTH, glowTexture } from '../art'
 import { cssColor } from '../color'
 import type { View } from '../view'
 import { BuildPanel } from './BuildPanel'
-import { CardNote, createCardFace, fitText, showCardOn, sizeCardFace, type CardFace } from './cardFace'
+import { CardNote, createCardFace, showCardOn, sizeCardFace, type CardFace } from './cardFace'
 import { cardHitRect } from './cardHit'
+import { createCardMarks, decorateCardMarks, pulseCardMarks, type CardMarks } from './cardMarks'
 import type { RunContext } from './context'
 import { drawScribbleBox } from './panelFrame'
 import { addButton, addText, type Button, onCanvasKey, onClick, overlayView } from './ui'
@@ -67,9 +68,7 @@ interface CardView {
   // Fixed hit area around every pose of the card (cardHitRect), so the hover does not flicker.
   zone: Phaser.GameObjects.Zone
   // Outline, ribbon and tag of a weapon card that upgrades or replaces the weapon in its slot.
-  ring: Phaser.GameObjects.Graphics
-  ribbon: Phaser.GameObjects.Text
-  tag: Phaser.GameObjects.Text
+  marks: CardMarks
   relation: WeaponRelation
   // Slot centre and size, set by layout.
   x: number
@@ -234,10 +233,8 @@ export class LevelUpScene extends Phaser.Scene {
   }
 
   private createCard(index: number, glowKey: string): CardView {
-    const ring = this.add.graphics().setVisible(false)
-    const ribbon = addText(this, 'UPGRADE', 6.5, { color: PALETTE.navy, bold: true, align: 'center' }).setOrigin(0.5).setVisible(false)
-    const tag = addText(this, '', 5.8, { align: 'center' }).setOrigin(0.5, 0).setStroke(NAVY, 2).setVisible(false)
-    const face = createCardFace(this, glowKey, String(index + 1), [ring, ribbon, tag])
+    const marks = createCardMarks(this)
+    const face = createCardFace(this, glowKey, String(index + 1), [marks.ring, marks.ribbon, marks.tag])
     const zone = this.add.zone(0, 0, 1, 1)
     zone.on('pointerover', () => {
       this.hovered = index
@@ -250,7 +247,7 @@ export class LevelUpScene extends Phaser.Scene {
       if (this.detailIndex === index && !this.pinned) this.hideDetails()
     })
     onClick(this, zone, () => this.choose(index), CHOOSE_BUTTON)
-    return { face, zone, ring, ribbon, tag, relation: NO_RELATION, x: 0, y: 0, w: 1, h: 1, tilt: 0, phase: 0, hover: 0 }
+    return { face, zone, marks, relation: NO_RELATION, x: 0, y: 0, w: 1, h: 1, tilt: 0, phase: 0, hover: 0 }
   }
 
   private nextOffer() {
@@ -429,7 +426,7 @@ export class LevelUpScene extends Phaser.Scene {
       .setScale((0.9 + 0.1 * e) * (1 + HOVER_GROW * view.hover))
       .setAlpha(Math.min(1, p * 4))
     if (face.glow.visible) face.glow.setAlpha(0.55 + 0.3 * Math.sin(this.clock / 260))
-    if (view.ring.visible) view.ring.setAlpha(0.4 + 0.6 * (0.5 + 0.5 * Math.sin(this.clock / 170 + view.phase)))
+    pulseCardMarks(view.marks, this.clock, view.phase)
   }
 
   private layout() {
@@ -565,31 +562,8 @@ export class LevelUpScene extends Phaser.Scene {
   // The card's own marks: the ribbon and outline of an upgrade and the tag of a replacement.
   // Drawn when the offer or the size changes, never per frame.
   private decorateCard(view: CardView, s: number) {
-    const { relation } = view
-    const upgrade = relation.kind === 'upgrade'
-    view.ring.clear().setVisible(upgrade)
-    view.ribbon.setVisible(upgrade)
-    if (upgrade) {
-      const w = view.w
-      const h = view.h
-      view.ring.lineStyle(Math.max(2, 3 * s), PALETTE.teal, 1).strokeRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2)
-      view.ring.lineStyle(Math.max(1, 1.2 * s), PALETTE.yellow, 1).strokeRect(-w / 2 - 4 * s, -h / 2 - 4 * s, w + 8 * s, h + 8 * s)
-      view.ribbon
-        .setFontSize(6.5 * s)
-        .setBackgroundColor(cssColor(PALETTE.yellow))
-        .setPadding(4 * s, 1.5 * s, 4 * s, 1.5 * s)
-        .setPosition(0, -h / 2)
-    }
-    const tag = relation.kind === 'none' ? '' : relation.kind === 'upgrade' ? `Becomes ${this.upgradeName(view)}` : `Replaces ${relation.currentName}`
-    view.tag.setVisible(tag !== '')
-    if (tag === '') return
-    view.tag.setPosition(0, view.h / 2 + 3 * s).setColor(cssColor(upgrade ? PALETTE.yellow : PALETTE.cream))
-    fitText(view.tag, tag, view.w * 1.05, 14 * s, 5.8 * s, 4.2 * s)
-  }
-
-  private upgradeName(view: CardView): string {
     const card = this.offer[this.cards.indexOf(view)]
-    return weaponName(card.id.slice('weapon.'.length) as PlayerWeaponId, 2)
+    decorateCardMarks(view.marks, view.relation, relationLabel(view.relation, card), view.w, view.h, s)
   }
 
   // The build panel marks the slot that the hovered weapon card would upgrade or replace.

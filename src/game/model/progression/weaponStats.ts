@@ -188,3 +188,10 @@ export function weaponRelation(build: PlayerBuild, card: { id: string; slot?: We
   if (card.id !== `weapon.${current.id}`) return { kind: 'replace', slot, currentName }
   return current.tier === 1 && !isLegendaryWeapon(current.id) ? { kind: 'upgrade', slot, currentName } : { kind: 'none' }
 }
+
+// The tag under a weapon card: what the card turns the slot's weapon into. Empty for no relation.
+export function relationLabel(relation: WeaponRelation, card: { id: string }): string {
+  if (relation.kind === 'replace') return `Replaces ${relation.currentName}`
+  if (relation.kind === 'upgrade') return `Becomes ${weaponName(card.id.slice('weapon.'.length) as PlayerWeaponId, 2)}`
+  return ''
+}

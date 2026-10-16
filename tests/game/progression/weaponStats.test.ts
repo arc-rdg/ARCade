@@ -3,7 +3,7 @@ import type { AttackContext, AttackMove, WeaponMoveset } from '../../../src/game
 import type { PlayerWeaponId, WeaponSlot } from '../../../src/game/contracts/progression'
 import { createBuild } from '../../../src/game/model/progression/build'
 import { CARDS, LEGENDARY_WEAPON_IDS } from '../../../src/game/model/progression/catalog'
-import { weaponRelation, weaponStats } from '../../../src/game/model/progression/weaponStats'
+import { relationLabel, weaponName, weaponRelation, weaponStats } from '../../../src/game/model/progression/weaponStats'
 import { staffMoveset } from '../../../src/game/phaser/player/staffMoveset'
 import { beakerMoveset, bunsenMoveset, discMoveset, petriMoveset } from '../../../src/game/phaser/player/weapons/heavy'
 import { bindScheduler, heavyOf } from '../../../src/game/phaser/player/weapons/kit'
@@ -186,5 +186,27 @@ describe('weaponRelation', () => {
   it('does nothing at tier 2 and for other cards', () => {
     expect(weaponRelation(withLight('wand', 2), { id: 'weapon.wand', slot: 'light' }).kind).toBe('none')
     expect(weaponRelation(build, { id: 'stat.sharpened' }).kind).toBe('none')
+  })
+})
+
+describe('relationLabel', () => {
+  const build = createBuild()
+  const owned = (id: 'wand' | 'arcitect', tier: 1 | 2) => ({ ...build, weapons: { ...build.weapons, light: { id, tier } } })
+  const wand = { id: 'weapon.wand', slot: 'light' as const }
+
+  it('names the tier 2 weapon for an upgrade', () => {
+    const relation = weaponRelation(owned('wand', 1), wand)
+    expect(relationLabel(relation, wand)).toBe(`Becomes ${weaponName('wand', 2)}`)
+  })
+
+  it('names the weapon a card replaces', () => {
+    expect(relationLabel(weaponRelation(build, wand), wand)).toBe('Replaces Staff')
+  })
+
+  it('is empty for no relation and for a held legendary weapon', () => {
+    expect(relationLabel(weaponRelation(owned('wand', 2), wand), wand)).toBe('')
+    const legendary = { id: 'weapon.arcitect', slot: 'light' as const }
+    expect(relationLabel(weaponRelation(owned('arcitect', 1), legendary), legendary)).toBe('')
+    expect(relationLabel(weaponRelation(owned('wand', 1), legendary), legendary)).toBe('Replaces Wand')
   })
 })

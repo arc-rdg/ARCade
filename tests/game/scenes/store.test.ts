@@ -2,7 +2,7 @@ import { ARC } from '@nfdi4plants/arctrl'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { buildProvenanceIndex } from '../../../src/arc/provenance/buildIndex'
 import type { RunPlan } from '../../../src/game/contracts/run'
-import { priceOf } from '../../../src/game/model/progression'
+import { applyCard, CARDS, priceOf, relationLabel, weaponName, weaponRelation } from '../../../src/game/model/progression'
 import { planRun } from '../../../src/game/model/run'
 import { historyRow } from '../../../src/game/phaser/scenes/levelHistory'
 import { RunDirector } from '../../../src/game/phaser/scenes/RunDirector'
@@ -86,5 +86,19 @@ describe('the FAIR trade store in a run', () => {
     expect(row.source).toContain('waystation')
     expect(row.source).toContain(director.bossSpec(0).label)
     expect(row.title).toBe(`Bought · ${card.name} (${card.rarity}) · ${priceOf(card)} fragments`)
+  })
+})
+
+describe('weapon upgrades in the store', () => {
+  it('marks an owned tier 1 weapon in stock as an upgrade to tier 2', () => {
+    const director = atFirstTrader(0)
+    const card = CARDS.find((entry) => entry.id === 'weapon.wand')
+    if (!card) throw new Error('No wand card')
+    const owned = applyCard(director.build, card.id)
+    const relation = weaponRelation(owned, card)
+    expect(owned.weapons.light.tier).toBe(1)
+    expect(relation.kind).toBe('upgrade')
+    expect(relationLabel(relation, card)).toBe(`Becomes ${weaponName('wand', 2)}`)
+    expect(weaponRelation(applyCard(owned, card.id), card).kind).toBe('none')
   })
 })

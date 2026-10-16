@@ -3,13 +3,14 @@ import { PALETTE, SCENE } from '../../contracts/constants'
 import type { PowerUpCard } from '../../contracts/progression'
 import { hashString } from '../../contracts/rng'
 import { bindingLabel } from '../../model/input'
-import { priceOf, STOCK_SIZE, stockState, weaponRelation, type StockState } from '../../model/progression'
+import { priceOf, relationLabel, STOCK_SIZE, stockState, weaponRelation, type StockState, type WeaponRelation } from '../../model/progression'
 import { applySpriteRef, CARD_HEIGHT, CARD_WIDTH, fragmentArt, glowTexture, traderArt } from '../art'
 import { cssColor } from '../color'
 import type { View } from '../view'
 import { BuildPanel } from './BuildPanel'
 import { CardNote, createCardFace, showCardOn, sizeCardFace, type CardFace } from './cardFace'
 import { cardHitRect } from './cardHit'
+import { createCardMarks, decorateCardMarks, pulseCardMarks, type CardMarks } from './cardMarks'
 import type { RunContext } from './context'
 import { drawScribbleBox } from './panelFrame'
 import { addButton, addText, type Button, onCanvasKey, onClick, overlayView } from './ui'
@@ -26,7 +27,11 @@ const HOVER_LIFT = 0.04
 const HOVER_GROW = 0.06
 const BOB = 0.012
 const SIDE_PANEL_MIN_WIDTH = 600
+// The tag under a card starts 3 units (of card art) below it and stays on one line of 8.
+const TAG_GAP = 3
+const TAG_LINE = 8
 const BUILD_KEY = 'KeyB'
+const NO_RELATION: WeaponRelation = { kind: 'none' }
 const NAVY = cssColor(PALETTE.navy)
 const DIM_ALPHA: Record<StockState, number> = { buy: 1, poor: 0.5, unusable: 0.35 }
 const PRICE_COLOR: Record<StockState, string> = { buy: cssColor(PALETTE.yellow), poor: '#f28b82', unusable: '#b8bec6' }
@@ -37,6 +42,9 @@ interface StockView {
   fragment: Phaser.GameObjects.Sprite
   price: Phaser.GameObjects.Text
   state: StockState
+  // Outline, ribbon and tag of a weapon card that upgrades or replaces the weapon in its slot.
+  marks: CardMarks
+  relation: WeaponRelation
   x: number
   y: number
   w: number
@@ -156,7 +164,8 @@ export class StoreScene extends Phaser.Scene {
   }
 
   private createCard(index: number, glowKey: string): StockView {
-    const face = createCardFace(this, glowKey, String(index + 1))
+    const marks = createCardMarks(this)
+    const face = createCardFace(this, glowKey, String(index + 1), [marks.ring, marks.ribbon, marks.tag])
     const fragmentRef = fragmentArt(this)
     const fragment = this.add.sprite(0, 0, fragmentRef.textureKey)
     applySpriteRef(fragment, fragmentRef)
@@ -175,7 +184,7 @@ export class StoreScene extends Phaser.Scene {
       if (this.detailIndex === index && !this.pinned) this.hideDetails()
     })
     onClick(this, zone, () => this.buy(index), BUY_BUTTON)
-    return { face, zone, fragment, price, state: 'buy', x: 0, y: 0, w: 1, h: 1, tilt: 0, phase: 0, hover: 0 }
+    return { face, zone, fragment, price, state: 'buy', marks, relation: NO_RELATION, x: 0, y: 0, w: 1, h: 1, tilt: 0, phase: 0, hover: 0 }
   }
 
   // Reads the stock, the Ontology Fragments and the build again. Runs on open and after every purchase.
@@ -194,6 +203,7 @@ export class StoreScene extends Phaser.Scene {
       view.tilt = ((hashString(card.id) % 1001) / 500 - 1) * TILT
       view.phase = (hashString(card.id) % 628) / 100
       view.state = stockState(director.build, director.fragments, card)
+      view.relation = weaponRelation(director.build, card)
       view.price.setText(view.state === 'unusable' ? 'no use now' : String(priceOf(card))).setColor(PRICE_COLOR[view.state])
       view.fragment.setAlpha(view.state === 'unusable' ? 0 : DIM_ALPHA[view.state])
     })
@@ -203,6 +213,7 @@ export class StoreScene extends Phaser.Scene {
       if (!shown) view.face.box.setVisible(false)
       view.fragment.setVisible(shown)
       view.price.setVisible(shown)
+      if (!shown) view.relation = NO_RELATION
     }
     this.empty.setVisible(this.stock.length === 0)
     const pause = this.ctx.bindings.pause[0]
@@ -243,6 +254,7 @@ export class StoreScene extends Phaser.Scene {
       .setScale(1 + HOVER_GROW * view.hover)
       .setAlpha(intro * DIM_ALPHA[view.state])
     if (face.glow.visible) face.glow.setAlpha(0.55 + 0.3 * Math.sin(this.clock / 260))
+    pulseCardMarks(view.marks, this.clock, view.phase)
   }
 
   private layout() {
@@ -279,9 +291,24 @@ export class StoreScene extends Phaser.Scene {
     this.line.setPosition(bx + 7, by + (bubbleH - this.line.height) / 2)
     const head = rowTop - top + Math.max(traderH, bubbleH) + 6
     const strip = Math.max(54, h * 0.2)
-    const priceRow = 14
     const n = this.stock.length
-    const room = h - margin * 2 - head - strip - priceRow - 10
+    // The tag of an upgrade or a replacement sits under the card, so the price row moves down by its height.
+    const tagged = this.cards.slice(0, n).some((view) => view.relation.kind !== 'none')
+    const fit = (tagRow: number) => {
+      const room = h - margin * 2 - head - strip - 14 - tagRow - 10
+      let cardW = (areaW - 16 - areaW * 0.025 * (Math.max(n, 3) - 1)) / Math.max(n, 3)
+      let cardH = (cardW * CARD_HEIGHT) / CARD_WIDTH
+      // Room for the hover lift and scale, about a tenth of the card at each end.
+      if (cardH * 1.15 > room) {
+        cardH = room / 1.15
+        cardW = (cardH * CARD_WIDTH) / CARD_HEIGHT
+      }
+      return { room, cardW, cardH }
+    }
+    // The tag grows with the card, so the row is sized from a first fit without it.
+    const tagRow = tagged ? ((TAG_GAP + TAG_LINE) * fit(0).cardW) / CARD_WIDTH : 0
+    const priceRow = 14 + tagRow
+    const { room, cardW, cardH } = fit(tagRow)
     const cardsTop = top + head
     this.stripTop = cardsTop + room + priceRow + 6
     this.hint.setPosition(centre, this.stripTop + 4).setWordWrapWidth(areaW - 24)
@@ -291,13 +318,6 @@ export class StoreScene extends Phaser.Scene {
       return
     }
     const gap = areaW * 0.025
-    let cardW = (areaW - 16 - gap * (Math.max(n, 3) - 1)) / Math.max(n, 3)
-    let cardH = (cardW * CARD_HEIGHT) / CARD_WIDTH
-    // Room for the hover lift and scale, about a tenth of the card at each end.
-    if (cardH * 1.15 > room) {
-      cardH = room / 1.15
-      cardW = (cardH * CARD_WIDTH) / CARD_HEIGHT
-    }
     const rowLeft = centre - (n * cardW + (n - 1) * gap) / 2
     for (let i = 0; i < n; i++) {
       const view = this.cards[i]
@@ -308,8 +328,9 @@ export class StoreScene extends Phaser.Scene {
       // The hit area covers the card in every pose, hovered or not (cardHitRect).
       const hit = cardHitRect({ w: cardW, h: cardH, tilt: TILT, lift: HOVER_LIFT, bob: BOB, hoverScale: 1 + HOVER_GROW, gap })
       view.zone.setPosition(view.x, view.y + (hit.top + hit.bottom) / 2).setSize(hit.right - hit.left, hit.bottom - hit.top)
-      sizeCardFace(view.face, this.stock[i], cardW)
-      const priceY = view.y + cardH * 0.55 + priceRow / 2 + 2
+      const scale = sizeCardFace(view.face, this.stock[i], cardW)
+      if (scale > 0) decorateCardMarks(view.marks, view.relation, relationLabel(view.relation, this.stock[i]), cardW, cardH, scale, TAG_LINE)
+      const priceY = view.y + cardH * 0.55 + tagRow + (priceRow - tagRow) / 2 + 2
       const size = Math.max(6.5, Math.min(9, cardW * 0.09))
       view.price.setFontSize(size)
       const unusable = view.state === 'unusable'
