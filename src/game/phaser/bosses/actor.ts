@@ -688,8 +688,9 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
       return
     }
     if (lead.spec) {
-      // The tell is up, the zone follows when the lead is over.
-      moveIdle(dtMs)
+      // The tell is up, the zone follows when the lead is over. The boss only turns to the player.
+      const dx = player.position().x - body.x
+      if (Math.abs(dx) > 14) body.facing = dx > 0 ? 1 : -1
       const due = tickLead(lead, dtMs)
       if (due && !player.isDead()) startAttack(due)
       else if (due) scheduler.complete()
