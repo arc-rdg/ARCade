@@ -3,6 +3,7 @@ import { PALETTE } from '../../contracts/constants'
 import { COOKIE_TEXT } from '../../model/progression'
 import type { View } from '../view'
 import { COOKIE_BANNER_EVENT, COOKIE_SUSPEND_EVENT, type CookieBannerHandle, type MageBand } from './cookieBannerEvent'
+import { HUD_BOTTOM, HUD_TOP } from './hudLayout'
 import { addText, onCanvasKey, onClick } from './ui'
 
 const M = 8
@@ -158,7 +159,7 @@ export class CookieBannerPanel {
   }
 
   private height(): number {
-    return Math.min(this.layer === 'main' ? MAIN_H : PREFS_H, this.view.height * 0.45)
+    return Math.min(this.layer === 'main' ? MAIN_H : PREFS_H, this.view.height * 0.45, Math.max(0, this.view.height - HUD_TOP - HUD_BOTTOM) / 2)
   }
 
   private chooseSide() {
@@ -168,8 +169,8 @@ export class CookieBannerPanel {
     const bandH = this.height()
     const top = this.band.top * h - CLEARANCE
     const bottom = this.band.bottom * h + CLEARANCE
-    const clearBottom = bottom <= h - M - bandH
-    const clearTop = top >= M + bandH
+    const clearBottom = bottom <= h - HUD_BOTTOM - bandH
+    const clearTop = top >= HUD_TOP + bandH
     if (this.side === 'bottom' && !clearBottom && clearTop) this.side = 'top'
     else if (this.side === 'top' && !clearTop && clearBottom) this.side = 'bottom'
   }
@@ -188,7 +189,7 @@ export class CookieBannerPanel {
     const bw = Math.min(w - 2 * M, MAX_WIDTH)
     const bh = this.height()
     const x0 = (w - bw) / 2
-    const y0 = this.side === 'bottom' ? h - M - bh : M
+    const y0 = this.side === 'bottom' ? h - HUD_BOTTOM - bh : HUD_TOP
     const leftW = bw - BUTTON_W - 3 * PAD
     const buttonX = x0 + bw - PAD - BUTTON_W / 2
     const acceptY = y0 + (main ? 24 : 28)

@@ -10,15 +10,12 @@ import type { StaggerState } from '../bosses'
 import { isDescription, type InspectInfo } from '../mobs'
 import type { HudControl, RunContext } from './context'
 import { CookieBannerPanel } from './CookieBannerPanel'
+import { HUD_MARGIN as M, SLOT_GAP, SLOT_H, SLOT_W } from './hudLayout'
 import { LevelHistoryPanel } from './LevelHistoryPanel'
 import { MobInfoPanel } from './MobInfoPanel'
 import { MOB_HOVER_EVENT, MOB_INFO_EVENT, MOB_ANCHOR_KEY, type NormRect } from './mobInfoEvent'
 import { addButton, addText, overlayView, type Button } from './ui'
 
-const M = 8
-const SLOT_W = 34
-const SLOT_H = 22
-const SLOT_GAP = 4
 const ABILITIES: readonly Action[] = ['ability1', 'ability2', 'ability3', 'ability4']
 // Cooldown overlays redraw in this many steps, not every frame.
 const COOLDOWN_STEPS = 16
