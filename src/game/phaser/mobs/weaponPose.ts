@@ -49,9 +49,9 @@ interface Swing {
 
 const SWINGS: Record<'claw' | 'spear' | 'whip' | 'shield', Swing> = {
   // Rears up over the head and rakes down through the front.
-  claw: { backAngle: -1.7, backDx: -0.15, backDy: -0.1, hitAngle: 0.8 },
+  claw: { backAngle: -2.1, backDx: -0.15, backDy: -0.3, hitAngle: 0.8 },
   // Pulled back level, then thrust straight out.
-  spear: { backAngle: -0.12, backDx: -0.35, backDy: 0, hitAngle: 0 },
+  spear: { backAngle: -0.12, backDx: -0.6, backDy: 0, hitAngle: 0 },
   // Cocked far behind, then cracked forward.
   whip: { backAngle: -2.5, backDx: -0.1, backDy: -0.15, hitAngle: 0.25 },
   // Raised and drawn in, then shoved forward.
@@ -91,7 +91,7 @@ export function poseWeapon(out: WeaponPose, input: WeaponPoseInput): WeaponPose 
     case 'shield':
       return poseSwing(out, SWINGS[kind], stage, t, input)
     case 'bow':
-      return poseShot(out, stage, t, input, input.aim, -0.12, -0.2)
+      return poseShot(out, stage, t, input, input.aim, -0.3, -0.2)
     case 'wand':
       // The wand is raised high during the windup and snaps to the target on the cast.
       return poseShot(out, stage, t, input, -1.4, 0, 0.2)

@@ -10,6 +10,8 @@ export const TERMINAL_FALL = 720
 export const MAX_SPEED_X = 600
 
 export const CONTACT_COOLDOWN_MS = 600
+// A summoned minion cannot hurt by touch for this long after it appears.
+export const MINION_GRACE_MS = 400
 export const CONTACT_ACTIVE_MS = 60
 export const HIT_FLASH_MS = 90
 export const HIT_STUN_MS = 160
@@ -30,10 +32,21 @@ export const BLINK_MAX_MS = 4000
 export const BLINK_REACH = 4 * TILE
 export const BLINK_FLASH_MS = 250
 export const BLINK_STAND_OFF = 40
+// A blinker waits this long after it lands before it attacks.
+export const BLINK_ATTACK_DELAY_MS = 300
 
+// The summoner puffs up for this long before its minions appear.
+export const SUMMON_PUFF_MS = 300
+export const SUMMON_PUFF_SCALE = 0.18
 export const MINION_COUNT = 2
 export const MINION_HP_SHARE = 0.25
 export const MINION_DAMAGE_SHARE = 0.5
+
+// The bat pulls up DIVE_PULL_UP units and folds its wings for DIVE_WINDUP_MS before it dives, then
+// locks its aim. A bat nearer than DIVE_MIN_DISTANCE to the player flies off first.
+export const DIVE_WINDUP_MS = 320
+export const DIVE_PULL_UP = 12
+export const DIVE_MIN_DISTANCE = 120
 
 export const BOMB_FUSE_MS = 1200
 export const BOMB_SLOTS = 2
@@ -93,11 +106,28 @@ export interface MeleeTuning {
 }
 
 export const MELEE: Record<'claw' | 'spear' | 'whip' | 'shield', MeleeTuning> = {
-  claw: { windupMs: 200, activeMs: 120, recoverMs: 250, thickness: 1, knockback: { x: 200, y: -120 } },
-  whip: { windupMs: 250, activeMs: 160, recoverMs: 300, thickness: 0.55, knockback: { x: 180, y: -100 } },
-  spear: { windupMs: 300, activeMs: 140, recoverMs: 350, thickness: 0.5, knockback: { x: 220, y: -110 } },
-  shield: { windupMs: 350, activeMs: 140, recoverMs: 350, thickness: 1, knockback: { x: 260, y: -90 } },
+  claw: { windupMs: 320, activeMs: 120, recoverMs: 250, thickness: 1, knockback: { x: 200, y: -120 } },
+  whip: { windupMs: 340, activeMs: 160, recoverMs: 300, thickness: 0.55, knockback: { x: 180, y: -100 } },
+  spear: { windupMs: 360, activeMs: 140, recoverMs: 350, thickness: 0.5, knockback: { x: 220, y: -110 } },
+  shield: { windupMs: 380, activeMs: 140, recoverMs: 350, thickness: 1, knockback: { x: 260, y: -90 } },
 }
+
+// The body and weapon pose of a wind-up is mostly formed (easeOut) within the first WINDUP_RAMP_MS and
+// then held for at least WINDUP_HOLD_MS before the strike.
+export const WINDUP_RAMP_MS = 200
+export const WINDUP_HOLD_MS = 80
+// The tell colour: one full flash as the wind-up starts, then a warm tint on the body.
+export const TELL_FLASH_MS = 60
+
+// No attack comes sooner than this after the last one, whatever the multipliers say.
+export const ATTACK_COOLDOWN_FLOOR_MS = 800
+
+// A straight shot reaches the player no sooner than this after its wind-up starts.
+export const RANGED_MIN_LEAD_MS = 450
+// Bows and wands back away from a player nearer than the first distance, until the second.
+export const RANGED_BACKOFF_NEAR = 100
+export const RANGED_BACKOFF_FAR = 130
+export const RANGED_BACKOFF_SPEED = 0.9
 
 export interface RangedTuning {
   windupMs: number

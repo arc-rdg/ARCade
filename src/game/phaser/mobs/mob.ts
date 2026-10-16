@@ -28,6 +28,7 @@ import type { StanceMods } from './stance'
 import {
   AGGRO_RELEASE,
   BLAST_RADIUS,
+  BLINK_ATTACK_DELAY_MS,
   BLINK_FLASH_MS,
   BLINK_MAX_MS,
   BLINK_MIN_MS,
@@ -39,6 +40,8 @@ import {
   CONTACT_KNOCKBACK,
   CONTACT_ACTIVE_MS,
   DEATH_MS,
+  DIVE_PULL_UP,
+  DIVE_WINDUP_MS,
   DIZZY_MIN_MS,
   FALL_LIMIT,
   GOLEM_DAMAGE,
@@ -58,19 +61,26 @@ import {
   MELEE,
   MINION_COUNT,
   MINION_DAMAGE_SHARE,
+  MINION_GRACE_MS,
   MINION_HP_SHARE,
   PATROL_RADIUS,
   PROJECTILE_KNOCKBACK,
   PROVOKE_MS,
   RANGED,
+  RANGED_BACKOFF_SPEED,
   SQUASH_MS,
   STAGGER_RECOVER_MS,
+  SUMMON_PUFF_MS,
+  SUMMON_PUFF_SCALE,
+  TELL_FLASH_MS,
   TERMINAL_FALL,
   WANDER_RADIUS,
 } from './tuning'
 import type { Mob, MobDeps } from './types'
 import { WEAPON_KICK_MS, meleeLunge, poseWeapon } from './weaponPose'
 import type { WeaponPose, WeaponPoseInput } from './weaponPose'
+import { NO_POSE, attackCooldownMs, bodyWindupPose, contactDamageFor, diveDecision, diveLocks, rangedWindupMs, retreatDirection, wantsToBackOff, windupForm, windupProgress } from './windup'
+import type { BodyPose } from './windup'
 
 const xpByMob = new WeakMap<Combatant, number>()
 // Bodies of awake mobs per combat world, so a hit-stop can hold all of them in place.
@@ -79,7 +89,7 @@ let nextId = 1
 
 const NEUTRAL: StanceMods = { speed: 1, cooldown: 1, damageTaken: 1 }
 const ZERO: Vec = { x: 0, y: 0 }
-const TINT = { hit: 0xffffff, windup: 0xff7a3d, blink: 0xbfe9ff, aggressive: 0xff9d90, defensive: 0x93b4ff, frozen: 0x8fd0ff, slowed: 0xc6e4f5 } as const
+const TINT = { hit: 0xffffff, windup: 0xff7a3d, warm: 0xffa070, blink: 0xbfe9ff, aggressive: 0xff9d90, defensive: 0x93b4ff, frozen: 0x8fd0ff, slowed: 0xc6e4f5 } as const
 // How fast a frozen mob brakes to a stop, world units per second squared.
 const FREEZE_BRAKE = 2400
 
@@ -97,13 +107,20 @@ const PHANTOM_BUBBLE = ['...']
 
 const HOP_SPEED = 340
 const IMP_JUMP_SPEED = 380
-const CHARGE_WINDUP_MS = 300
+const CHARGE_WINDUP_MS = 380
 const CHARGE_RUN_MS = 700
 const CHARGE_RECOVER_MS = 500
 const CHARGE_COOLDOWN_MS = 1800
 const CHARGE_FACTOR = 3.5
 const DIVE_FACTOR = 2.6
 const DIVE_MS = 900
+// The pose releases over this long once the strike lands.
+const POSE_RELEASE_MS = 120
+// Beetle charge wind-up: dust puffs at these remaining times.
+const CHARGE_PUFF_AT = [260, 130]
+const BAT_POSE: BodyPose = { lean: -18, sx: 0.85, sy: 1, step: 0 }
+const CROUCH_POSE: BodyPose = { lean: -5, sx: 1.1, sy: 0.82, step: 0 }
+const PUFF_POSE: BodyPose = { lean: 0, sx: 1 + SUMMON_PUFF_SCALE, sy: 1 + SUMMON_PUFF_SCALE, step: 0 }
 const STEPS_PER_PROBE = 3
 const RANGED_RECOVER_MS = 250
 // Squash of a light shot, which hurts without stunning or pushing.
@@ -117,6 +134,7 @@ const ON_SCREEN_MARGIN = 12
 type MeleeKind = keyof typeof MELEE
 type RangedKind = keyof typeof RANGED
 type AttackPhase = 'idle' | 'windup' | 'recover'
+type SwoopState = 'perch' | 'windup' | 'dive' | 'rise'
 
 interface Bomb {
   active: boolean
@@ -259,7 +277,12 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     dx: 0,
     stunMs: 0,
     flashMs: 0,
-    contactMs: 0,
+    tellMs: 0,
+    summonMs: 0,
+    puffs: 0,
+    form: 0,
+    shiftX: 0,
+    contactMs: minion ? MINION_GRACE_MS : 0,
     attackCdMs: rng.int(0, Math.min(800, weapon.cooldownMs)),
     phaseMs: 0,
     phaseTotalMs: 1,
@@ -312,7 +335,14 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   let wanderDir: -1 | 0 | 1 = 0
   let routeDir: -1 | 1 = rng.chance(0.5) ? 1 : -1
   let charge: 'none' | 'windup' | 'run' | 'recover' = 'none'
-  let swoop: 'perch' | 'dive' | 'rise' = 'perch'
+  let swoop: SwoopState = 'perch'
+  let activePose: BodyPose = NO_POSE
+  let styled = false
+  let summoning = false
+  let backingOff = false
+  const windPose = bodyWindupPose(weapon.kind, spec.body)
+  // Bows and wands keep their distance on the ground. Turrets and thrown weapons stay as they are.
+  const backsOff = armed && !flies && spec.body !== 'turret' && (weapon.kind === 'bow' || weapon.kind === 'wand')
 
   const probe: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 }
   const lookAhead = spec.body === 'slime' ? 34 : LEDGE_LOOKAHEAD
@@ -428,8 +458,23 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     return isMelee(weapon.kind) ? gap <= weapon.range * 0.5 : Math.abs(st.dx) <= weapon.range * 0.7
   }
 
+  // Backs away from a player that is too close, facing them. A wall or a ledge behind stops it.
+  function retreat(speed: number) {
+    const dir = st.dx >= 0 ? -1 : 1
+    const wall = dir > 0 ? wallRight : wallLeft
+    const ledge = onGround && !wall && stopsAtLedge(dir, false)
+    st.targetVx = retreatDirection(st.dx, wall, ledge) * speed * RANGED_BACKOFF_SPEED
+  }
+
   function chaseWalk(speed: number) {
     faceTarget()
+    if (backsOff) {
+      backingOff = wantsToBackOff(Math.abs(st.dx), backingOff)
+      if (backingOff) {
+        retreat(speed)
+        return
+      }
+    }
     if (holdsGround()) {
       st.targetVx = 0
       return
@@ -439,7 +484,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
 
   function thinkGround(dt: number) {
     const speed = stats.speed * mods.speed * st.timeScale
-    if (st.stunMs > 0 || st.blinkMs > 0 || phase !== 'idle') {
+    if (st.stunMs > 0 || st.blinkMs > 0 || phase !== 'idle' || summoning) {
       st.targetVx = 0
       return
     }
@@ -518,6 +563,10 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     if (charge === 'windup') {
       st.targetVx = 0
       st.chargeMs -= dt
+      if (st.puffs < CHARGE_PUFF_AT.length && st.chargeMs <= CHARGE_PUFF_AT[st.puffs]) {
+        st.puffs++
+        playFx(scene, art, 'dust', cx() - facing * halfW * 0.7, feetY() - 4, W * 0.9)
+      }
       if (st.chargeMs <= 0) {
         charge = 'run'
         st.chargeMs = CHARGE_RUN_MS
@@ -535,10 +584,12 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       if (st.chargeMs <= 0) charge = 'none'
       return
     }
-    if (chasing && onGround && st.chargeCdMs <= 0 && Math.abs(st.pFeet - feetY()) < 36 && Math.abs(st.dx) > 60) {
+    if (chasing && onGround && st.chargeCdMs <= 0 && Math.abs(st.pFeet - feetY()) < 36 && Math.abs(st.dx) > 60 && onScreen()) {
       faceTarget()
       charge = 'windup'
       st.chargeMs = CHARGE_WINDUP_MS
+      st.puffs = 0
+      st.tellMs = TELL_FLASH_MS
       st.targetVx = 0
       return
     }
@@ -600,6 +651,26 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       }
       return
     }
+    if (swoop === 'windup') {
+      // Pulls up and holds its place, then locks the aim on where the player is now.
+      st.swoopMs -= dt * st.timeScale
+      faceTarget()
+      body.setVelocity(approach(body.velocity.x, 0, 900 * seconds), (-DIVE_PULL_UP * 1000) / DIVE_WINDUP_MS)
+      if (st.swoopMs > 0) return
+      const tx = st.px - cx()
+      const ty = st.pcy - cy()
+      const length = Math.hypot(tx, ty) || 1
+      if (!diveLocks(length)) {
+        swoop = 'perch'
+        st.swoopCdMs = 500
+        return
+      }
+      st.diveVx = (tx / length) * speed * DIVE_FACTOR
+      st.diveVy = (ty / length) * speed * DIVE_FACTOR
+      swoop = 'dive'
+      st.swoopMs = DIVE_MS
+      return
+    }
     if (swoop === 'rise') {
       const vy = clamp((homeCy - cy()) * 4, -speed * 1.2, speed * 1.2)
       body.setVelocity(facing * speed * 0.8, vy)
@@ -614,14 +685,16 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       faceTarget()
       vx = Math.abs(st.dx) > 30 ? Math.sign(st.dx) * speed * 0.5 : 0
       if (st.swoopCdMs <= 0 && phase === 'idle') {
-        const tx = st.px - cx()
-        const ty = st.pcy - cy()
-        const length = Math.hypot(tx, ty) || 1
-        st.diveVx = (tx / length) * speed * DIVE_FACTOR
-        st.diveVy = (ty / length) * speed * DIVE_FACTOR
-        swoop = 'dive'
-        st.swoopMs = DIVE_MS
-        return
+        const decision = diveDecision(Math.hypot(st.px - cx(), st.pcy - cy()), onScreen())
+        if (decision === 'reposition') {
+          // Too close to dive. It flies off first.
+          vx = (st.dx >= 0 ? -1 : 1) * speed * 0.8
+        } else if (decision === 'windup') {
+          swoop = 'windup'
+          st.swoopMs = DIVE_WINDUP_MS
+          st.tellMs = TELL_FLASH_MS
+          return
+        }
       }
     } else if (passive === 'patrol') {
       if (cx() >= homeX + PATROL_RADIUS) routeDir = -1
@@ -652,7 +725,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   // Weapons
 
   function lockedByBody(): boolean {
-    return charge !== 'none' || swoop === 'dive' || st.blinkMs > 0
+    return charge !== 'none' || swoop === 'windup' || swoop === 'dive' || st.blinkMs > 0
   }
 
   function inReach(): boolean {
@@ -666,8 +739,10 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   }
 
   function windupMs(): number {
-    const base = isMelee(weapon.kind) ? MELEE[weapon.kind].windupMs : RANGED[weapon.kind].windupMs
-    return base + (spec.body === 'golem' ? GOLEM_WINDUP_MS : 0)
+    if (isMelee(weapon.kind)) return MELEE[weapon.kind].windupMs + (spec.body === 'golem' ? GOLEM_WINDUP_MS : 0)
+    const tune = RANGED[weapon.kind]
+    // Wind-up plus flight to a player at point-blank must still leave time to react.
+    return rangedWindupMs(tune.windupMs, Math.hypot(st.dx, st.pcy - cy()), tune.speed)
   }
 
   function updateAttack(dt: number) {
@@ -687,12 +762,13 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       if (st.phaseMs <= 0) phase = 'idle'
       return
     }
-    if (st.attackCdMs > 0 || st.stunMs > 0 || lockedByBody()) return
+    if (st.attackCdMs > 0 || st.stunMs > 0 || lockedByBody() || summoning) return
     if (!(aggro || passive === 'patrol') || !inReach() || !onScreen()) return
     faceTarget()
     phase = 'windup'
     st.phaseMs = windupMs()
     st.phaseTotalMs = st.phaseMs
+    st.tellMs = TELL_FLASH_MS
   }
 
   // Mobs stay awake well beyond the screen edge, and ranged weapons reach further than a small
@@ -706,7 +782,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   }
 
   function fire() {
-    st.attackCdMs = weapon.cooldownMs * mods.cooldown
+    st.attackCdMs = attackCooldownMs(weapon.cooldownMs, mods.cooldown)
     if (isMelee(weapon.kind)) fireMelee(weapon.kind)
     else fireRanged(weapon.kind)
   }
@@ -856,6 +932,15 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     playFx(scene, art, 'crit', bomb.x, bomb.y, r * 2)
   }
 
+  // A hit or a freeze ends a dive and drops a dive that has not started.
+  function breakSwoop() {
+    if (swoop === 'dive') swoop = 'rise'
+    else if (swoop === 'windup') {
+      swoop = 'perch'
+      st.swoopCdMs = 600
+    }
+  }
+
   function cancelAttacks() {
     activeBox?.cancel()
     activeBox = null
@@ -867,7 +952,8 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     phase = 'idle'
     st.phaseMs = 0
     charge = 'none'
-    if (swoop === 'dive') swoop = 'rise'
+    breakSwoop()
+    summoning = false
     st.blinkMs = 0
     ghost?.setVisible(false)
   }
@@ -879,7 +965,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     phase = 'idle'
     st.phaseMs = 0
     if (charge !== 'none') endCharge(300)
-    if (swoop === 'dive') swoop = 'rise'
+    breakSwoop()
     if (st.blinkMs > 0) {
       st.blinkMs = 0
       ghost?.setVisible(false)
@@ -899,7 +985,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       shape: { kind: 'rect', x: -halfW, y: -H, w: W, h: H },
       follow: true,
       activeMs: CONTACT_ACTIVE_MS,
-      damage: stats.contactDamage,
+      damage: contactDamageFor(stats.contactDamage, weapon.damage, lockedByBody()),
       knockback: { x: CONTACT_KNOCKBACK.x * side, y: CONTACT_KNOCKBACK.y },
       hitStopMs: 40,
       maxTargets: 1,
@@ -915,6 +1001,20 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     for (let i = 0; i < MINION_COUNT; i++) {
       const offset = (i === 0 ? -1 : 1) * 16
       minions.push(createMob(scene, minionSpec, deps, cx() + offset, feetY(), true))
+    }
+  }
+
+  // The summoner puffs up first and the minions appear when the puff is full.
+  function updateSummon(dt: number) {
+    if (summoning) {
+      st.summonMs -= dt
+      if (st.summonMs > 0) return
+      summoning = false
+      summon()
+    } else if (aggro && st.stunMs <= 0) {
+      summoning = true
+      st.summonMs = SUMMON_PUFF_MS
+      st.tellMs = TELL_FLASH_MS
     }
   }
 
@@ -938,6 +1038,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
         ghost?.setVisible(false)
         body.reset(st.blinkX - halfW, st.blinkCy - H / 2)
         st.blinkCdMs = rng.int(BLINK_MIN_MS, BLINK_MAX_MS)
+        st.attackCdMs = Math.max(st.attackCdMs, BLINK_ATTACK_DELAY_MS)
       }
       return
     }
@@ -995,20 +1096,22 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     let code = 0
     if (st.flashMs > 0) code = 1
     else if (status.freezeMs > 0) code = 6
-    else if ((phase === 'windup' || charge === 'windup') && flicker) code = 2
+    else if (phase === 'windup' || charge === 'windup' || swoop === 'windup' || summoning) code = st.tellMs > 0 ? 2 : 8
     else if (st.blinkMs > 0 && flicker) code = 3
     else if (status.slowMs > 0) code = 7
     else if (stance) code = stance.aggressive ? 4 : 5
     if (code === tintCode) return
     tintCode = code
     paint(sprite, code)
-    paint(weaponSprite, code)
+    // The warm tell tints the body only, so the weapon keeps its colours and stays easy to read.
+    paint(weaponSprite, code === 8 ? 0 : code)
   }
 
   function paint(target: Phaser.GameObjects.Sprite, code: number) {
     if (code === 0) target.clearTint()
     else if (code === 1) target.setTint(TINT.hit).setTintMode(Phaser.TintModes.FILL)
     else if (code === 2) target.setTint(TINT.windup).setTintMode(Phaser.TintModes.FILL)
+    else if (code === 8) target.setTint(TINT.warm).setTintMode(Phaser.TintModes.MULTIPLY)
     else if (code === 3) target.setTint(TINT.blink).setTintMode(Phaser.TintModes.FILL)
     else if (code === 6) target.setTint(TINT.frozen).setTintMode(Phaser.TintModes.MULTIPLY)
     else if (code === 7) target.setTint(TINT.slowed).setTintMode(Phaser.TintModes.MULTIPLY)
@@ -1042,18 +1145,47 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   }
 
   // A quick squash and a lean away from the hit that relax together.
+  // The wind-up pose: the body leans, squashes or stretches and steps back by the formed share of
+  // the pose. Writes into existing sprites only.
+  function updatePose() {
+    let form = 0
+    activePose = windPose
+    if (phase === 'windup') form = windupForm(st.phaseTotalMs - st.phaseMs, st.phaseTotalMs)
+    else if (phase === 'recover') form = Math.max(0, 1 - (st.phaseTotalMs - st.phaseMs) / POSE_RELEASE_MS)
+    else if (charge === 'windup') {
+      activePose = CROUCH_POSE
+      form = windupForm(CHARGE_WINDUP_MS - st.chargeMs, CHARGE_WINDUP_MS)
+    } else if (swoop === 'windup') {
+      activePose = BAT_POSE
+      form = windupForm(DIVE_WINDUP_MS - st.swoopMs, DIVE_WINDUP_MS)
+    } else if (summoning) {
+      activePose = PUFF_POSE
+      form = 1 - st.summonMs / SUMMON_PUFF_MS
+    }
+    st.form = activePose === NO_POSE ? 0 : clamp(form, 0, 1)
+  }
+
+  // A quick squash and a lean away from the hit that relax together, on top of the wind-up pose.
   function applySquash() {
-    if (st.squashMs <= 0) {
-      if (sprite.angle !== 0 || sprite.scaleY !== baseScaleY) sprite.setAngle(0).setScale(baseScaleX, baseScaleY)
+    const posed = st.form > 0
+    if (st.squashMs <= 0 && !posed) {
+      st.shiftX = 0
+      if (styled) {
+        styled = false
+        sprite.setAngle(0).setScale(baseScaleX, baseScaleY)
+      }
       return
     }
-    const t = (st.squashMs / SQUASH_MS) * st.squashAmount
-    sprite.setAngle(st.tiltDir * HIT_TILT_DEG * t)
-    sprite.setScale(baseScaleX * (1 + HIT_SQUASH * 0.8 * t), baseScaleY * (1 - HIT_SQUASH * t))
+    styled = true
+    const t = st.squashMs > 0 ? (st.squashMs / SQUASH_MS) * st.squashAmount : 0
+    const f = st.form
+    sprite.setAngle(st.tiltDir * HIT_TILT_DEG * t - facing * activePose.lean * f)
+    sprite.setScale(baseScaleX * (1 + HIT_SQUASH * 0.8 * t) * (1 + (activePose.sx - 1) * f), baseScaleY * (1 - HIT_SQUASH * t) * (1 + (activePose.sy - 1) * f))
+    st.shiftX = -facing * activePose.step * f
   }
 
   function syncSprite() {
-    sprite.setPosition(cx(), feetY())
+    sprite.setPosition(cx() + st.shiftX, feetY())
     const flip = facing === -1
     if (flip !== flipped) {
       flipped = flip
@@ -1074,7 +1206,9 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     poseInput.sway = Math.sin(st.clockMs * 0.004)
     if (phase === 'windup') {
       poseInput.stage = 'windup'
-      poseInput.t = 1 - st.phaseMs / st.phaseTotalMs
+      const elapsed = st.phaseTotalMs - st.phaseMs
+      // The thrown weapons cock back over the whole wind-up, the rest form their pose early and hold it.
+      poseInput.t = weapon.kind === 'bomb' || weapon.kind === 'flask' ? elapsed / st.phaseTotalMs : windupProgress(elapsed, st.phaseTotalMs)
       if (!isMelee(weapon.kind)) aimWeapon()
     } else if (phase === 'recover') {
       const strikeMs = Math.min(st.phaseTotalMs, isMelee(weapon.kind) ? MELEE[weapon.kind].activeMs : WEAPON_KICK_MS)
@@ -1089,14 +1223,30 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     } else if (charge === 'windup' || charge === 'run') {
       poseInput.stage = 'brace'
       poseInput.aim = 0
+    } else if (swoop === 'windup') {
+      poseInput.stage = 'brace'
+      aimWeapon()
     } else if (swoop === 'dive') {
       poseInput.stage = 'brace'
       poseInput.aim = clamp(Math.atan2(st.diveVy, Math.abs(st.diveVx)), AIM_UP, AIM_DOWN)
     } else poseInput.stage = 'rest'
     poseWeapon(pose, poseInput)
-    weaponSprite.setPosition(cx() + facing * (hand.x + pose.dx), feetY() + hand.y + pose.dy)
+    // The hand rides on the leaning, squashed body: scale its offset like the sprite, then turn it around the feet.
+    const sx = sprite.scaleX / baseScaleX
+    const sy = sprite.scaleY / baseScaleY
+    let hx = facing * (hand.x * sx + pose.dx)
+    let hy = hand.y * sy + pose.dy
+    const turn = sprite.rotation
+    if (turn !== 0) {
+      const cos = Math.cos(turn)
+      const sin = Math.sin(turn)
+      const rx = hx * cos - hy * sin
+      hy = hx * sin + hy * cos
+      hx = rx
+    }
+    weaponSprite.setPosition(cx() + st.shiftX + hx, feetY() + hy)
     // A negative x scale mirrors the weapon around the hand, and mirroring flips the turn.
-    weaponSprite.setRotation(facing * pose.angle)
+    weaponSprite.setRotation(facing * pose.angle + turn)
     weaponSprite.setScale(facing * weaponScaleX * pose.scale, weaponScaleY * pose.scale)
     if (weaponSprite.visible !== pose.visible) weaponSprite.setVisible(pose.visible)
   }
@@ -1104,7 +1254,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   // Phantom
 
   function phantomAlpha(): number {
-    if (phase !== 'idle' || charge !== 'none' || swoop === 'dive' || st.blinkMs > 0) return 1
+    if (phase !== 'idle' || charge !== 'none' || swoop === 'windup' || swoop === 'dive' || st.blinkMs > 0 || summoning) return 1
     // A frozen phantom shows, so the player sees what the freeze caught.
     if (status.freezeMs > 0) return PHANTOM_REVEAL_ALPHA
     if (highlight > 0 || raised) return PHANTOM_INSPECT_ALPHA
@@ -1203,6 +1353,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   function die() {
     dead = true
     st.hp = 0
+    st.form = 0
     leaveWorld()
     cancelAttacks()
     hideDizzy()
@@ -1261,6 +1412,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     st.clockMs += dt
     st.stunMs = Math.max(0, st.stunMs - dt)
     st.flashMs = Math.max(0, st.flashMs - dt)
+    st.tellMs = Math.max(0, st.tellMs - dt)
     st.staggerMs = Math.max(0, st.staggerMs - dt)
     st.provokedMs = Math.max(0, st.provokedMs - dt)
     st.squashMs = Math.max(0, st.squashMs - dt)
@@ -1286,7 +1438,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     st.timeScale = statusTimeScale(status)
     const frozen = st.timeScale <= 0
     if (stance && stepStance(stance, dt)) mods = stanceMods(stance)
-    if (!frozen && passive === 'summoner' && aggro && !summoned) summon()
+    if (!frozen && passive === 'summoner' && !summoned) updateSummon(dt * st.timeScale)
     if (!frozen && passive === 'blink') updateBlink(dt)
     // Before updateAttack, so a bomb launched in this step stays where it is. The combat world
     // moves its projectile for the first time on the next step. Bombs in flight keep flying.
@@ -1305,6 +1457,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     if (launched) checkLanding(dt)
     if (passive === 'chatter') updateChatter(dt)
     if (minions.length > 0) updateMinions(dt)
+    updatePose()
     refreshTint()
     applySquash()
     updateDizzy()
@@ -1424,7 +1577,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
         dizzy = reaction.staggerMs > DIZZY_MIN_MS
       } else {
         if (charge === 'run' || charge === 'windup') endCharge(300)
-        if (swoop === 'dive') swoop = 'rise'
+        breakSwoop()
       }
       if (spec.body === 'turret') return damage
       body.velocity.x = hit.knockback.x * 0.5 * reaction.knockbackScale
