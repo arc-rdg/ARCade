@@ -1,8 +1,29 @@
 {
   "name": "@arc-rdg/arcade",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "The ARCade game as a framework-free widget for ARC data.",
   "private": true,
   "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./arc": {
+      "types": "./dist/arc.d.ts",
+      "import": "./dist/arc.js"
+    },
+    "./mage.png": "./dist/ARCMage.png",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "dev": "vite --config site/vite.config.ts",
     "typecheck": "tsc -b",
@@ -11,11 +32,29 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "build:site": "vite build --config site/vite.config.ts",
-    "preview:site": "vite preview --config site/vite.config.ts"
+    "preview:site": "vite preview --config site/vite.config.ts",
+    "build": "vite build --config vite.lib.config.ts && rolldown -c rolldown.dts.config.ts",
+    "pack:check": "publint run --strict --pack npm && attw --pack . --profile esm-only --exclude-entrypoints ./mage.png"
   },
   "dependencies": {
     "phaser": "4.2.1",
     "roughjs": "4.6.6"
+  },
+  "peerDependencies": {
+    "@nfdi4plants/arctrl": "^3.0.0",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@nfdi4plants/arctrl": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
@@ -32,6 +71,7 @@
     "publint": "^0.3.25",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "rolldown-plugin-dts": "^0.28.8",
     "storybook": "^10.6.1",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
