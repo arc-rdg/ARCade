@@ -16,6 +16,15 @@ Deep links:
 Private ARCs need a personal access token, entered on the site (kept in sessionStorage unless
 "remember" is ticked).
 
+## Browsers
+
+ARCade runs in current Chrome, Edge, Firefox, Safari and Opera and needs a keyboard and a mouse.
+Right-click (heavy attack) never opens the page menu inside the arcade. Mouse gestures in Opera, and
+gesture add-ons in other browsers, belong to the browser, and a page cannot turn them off. If a
+right-button drag starts a gesture, turn gestures off in the browser or rebind heavy to a key in
+Settings. On a Windows touchpad, clicks made while a key is held are dropped; binding the attacks to
+keys avoids that.
+
 ## Embedding
 
 The package has three entry points. Phaser is loaded only when a run starts.

@@ -87,6 +87,11 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   stage.style.display = 'contents'
   root.append(stage)
   el.append(root)
+  // No browser menu over the arcade. On Windows the menu opens on mouseup, so the right button may come
+  // up over an overlay or the start screen and not the canvas. auxclick covers the middle button.
+  const blockMenu = (event: Event) => event.preventDefault()
+  root.addEventListener('contextmenu', blockMenu, true)
+  root.addEventListener('auxclick', blockMenu, true)
 
   let title = options.title
   let index = indexProvenance(options.provenance)
@@ -659,6 +664,8 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       pointerQuery.removeEventListener('change', onPointerChange)
       doc.removeEventListener('fullscreenchange', onFullscreenChange)
       if (isFullscreen()) doc.exitFullscreen().catch(() => {})
+      root.removeEventListener('contextmenu', blockMenu, true)
+      root.removeEventListener('auxclick', blockMenu, true)
       root.remove()
       releaseStyles()
     },

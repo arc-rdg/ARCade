@@ -167,6 +167,22 @@ it('starts a run without the start screen with autoStart and plans the given see
   expect(planRun).toHaveBeenCalledWith(expect.anything(), 'Talinum', 'fixed')
 })
 
+it('keeps the browser menu closed over the start screen and the game', async () => {
+  mount()
+  const menuOpens = (target: Element, type = 'contextmenu') => target.dispatchEvent(new MouseEvent(type, { button: type === 'auxclick' ? 1 : 2, bubbles: true, cancelable: true }))
+  expect(menuOpens(await screen.findByRole('button', { name: 'Start run' }))).toBe(false)
+
+  click(screen.getByRole('button', { name: 'Start run' }))
+  await screen.findByRole('button', { name: 'Click to play' })
+  const game = screen.getByRole('group', { name: 'ARCade game' })
+  // The canvas sits in the game group; any element there, overlays included, keeps the menu shut.
+  expect(menuOpens(game)).toBe(false)
+  expect(menuOpens(screen.getByRole('button', { name: 'Click to play' }))).toBe(false)
+  expect(menuOpens(game, 'auxclick')).toBe(false)
+  // Outside the arcade the page keeps its own menu.
+  expect(menuOpens(document.body)).toBe(true)
+})
+
 it('pauses the game while the canvas has no focus, the arcade is scrolled out of view or the tab is hidden', async () => {
   await startRun()
   expect(lastPause()).toEqual({ type: 'pause', paused: true })
