@@ -36,3 +36,12 @@ export function followView(scene: Phaser.Scene, onChange?: (view: View) => void)
   scene.scale.on('resize', apply)
   scene.events.once('shutdown', () => scene.scale.off('resize', apply))
 }
+
+// Share of the remaining gap a camera closes in one frame, so the follow lands the same at any frame
+// rate. 0.14 per 16.67 ms frame (60 fps) is the tuned feel, and 0.86 is the matching kept share.
+const FOLLOW_KEPT_PER_60FPS_FRAME = 0.86
+const FRAME_MS_60FPS = 16.67
+
+export function followLerp(deltaMs: number): number {
+  return 1 - Math.pow(FOLLOW_KEPT_PER_60FPS_FRAME, deltaMs / FRAME_MS_60FPS)
+}

@@ -13,7 +13,7 @@ import { INSPECT_DIM_DEPTH, PAUSE_DIM_ALPHA } from '../mobs/tuning'
 import { createInspector, inspectInfo, isDescription, mobXp, type InspectTarget, type Inspector } from '../mobs'
 import { attachLoadout, type LoadoutWithStatus } from '../player/weapons'
 import { createPlayer, type Player } from '../player/Player'
-import { followView, viewForBox, type View } from '../view'
+import { followLerp, followView, viewForBox, type View } from '../view'
 import { MOB_INFO_EVENT } from './mobInfoEvent'
 import type { GameplayControl, RunContext, TraderLoot } from './context'
 import { interactPressed } from './interaction'
@@ -169,7 +169,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     const camera = this.cameras.main
     const { x, y, width, height } = level.bounds
     camera.setBounds(x, y, width, height)
-    camera.startFollow(this.player.gameObject, false, 0.14, 0.14)
+    camera.startFollow(this.player.gameObject, false)
     camera.setDeadzone(24, 40)
 
     this.ctx.gameplay = this
@@ -195,7 +195,9 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
         this.onBannerDone()
       }
     }
-    const ease = 1 - Math.exp((-Math.min(delta, 50) / 1000) * 3)
+    const follow = followLerp(delta)
+    this.cameras.main.setLerp(follow, follow)
+    const ease = 1 - Math.exp((-Math.min(delta, 50) / 1000) * 6)
     this.lookAhead += (this.player.facing() * LOOK_AHEAD - this.lookAhead) * ease
     this.cameras.main.setFollowOffset(-this.lookAhead, 36)
     this.onFrame(delta)

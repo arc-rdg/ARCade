@@ -10,7 +10,7 @@ import { createInputLayer } from '../input/InputLayer'
 import { placeholderArt } from '../placeholderArt'
 import { createPlayer, markOneWay } from '../player/Player'
 import type { Player } from '../player/Player'
-import { followView } from '../view'
+import { followLerp, followView } from '../view'
 
 const T = TILE
 const FLOOR = 0
@@ -146,7 +146,7 @@ export class TestRoomScene extends Phaser.Scene {
     followView(this)
     const camera = this.cameras.main
     camera.setBounds(-T, FLOOR - 40 * T, ROOM_WIDTH + 2 * T, 46 * T)
-    camera.startFollow(player.gameObject, false, 0.14, 0.14)
+    camera.startFollow(player.gameObject, false)
     camera.setDeadzone(24, 40)
     let lookAhead = 0
     let overlayAgeMs = 0
@@ -175,7 +175,9 @@ export class TestRoomScene extends Phaser.Scene {
 
     this.events.on('update', (_time: number, delta: number) => {
       const target = player.facing() * 56
-      lookAhead += (target - lookAhead) * (1 - Math.exp((-Math.min(delta, 50) / 1000) * 3))
+      const follow = followLerp(delta)
+      camera.setLerp(follow, follow)
+      lookAhead += (target - lookAhead) * (1 - Math.exp((-Math.min(delta, 50) / 1000) * 6))
       camera.setFollowOffset(-lookAhead, 36)
       if (overlay.style.display === 'none') return
       // Rewriting DOM text every frame costs layout time, so the panel refreshes 5 times a second.

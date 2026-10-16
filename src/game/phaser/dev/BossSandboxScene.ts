@@ -20,7 +20,7 @@ import { createInputLayer } from '../input/InputLayer'
 import { placeholderArt } from '../placeholderArt'
 import { createPlayer, markOneWay } from '../player/Player'
 import type { Player } from '../player/Player'
-import { followView } from '../view'
+import { followLerp, followView } from '../view'
 
 const T = TILE
 const FLOOR = 0
@@ -163,7 +163,7 @@ export class BossSandboxScene extends Phaser.Scene {
     const camera = this.cameras.main
     // The floor stays two tiles above the bottom edge, whatever height the box shows.
     followView(this, (view) => camera.setBounds(-T, FLOOR - view.height + 2 * T, width + 2 * T, view.height))
-    camera.startFollow(player.gameObject, false, 0.14, 0.14)
+    camera.startFollow(player.gameObject, false)
 
     const overlay = document.createElement('div')
     overlay.style.cssText =
@@ -205,6 +205,8 @@ export class BossSandboxScene extends Phaser.Scene {
 
     let overlayAgeMs = OVERLAY_INTERVAL_MS
     this.events.on('update', (_time: number, delta: number) => {
+      const follow = followLerp(delta)
+      camera.setLerp(follow, follow)
       overlayAgeMs += delta
       if (overlayAgeMs < OVERLAY_INTERVAL_MS) return
       overlayAgeMs = 0

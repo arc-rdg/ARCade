@@ -14,7 +14,7 @@ import type { Player } from '../player/Player'
 import { aimedVelocity } from '../player/weapons/helpers'
 import { attachLoadout } from '../player/weapons'
 import type { LoadoutWithStatus } from '../player/weapons'
-import { followView } from '../view'
+import { followLerp, followView } from '../view'
 
 const T = TILE
 const FLOOR = 0
@@ -246,7 +246,7 @@ export class LoadoutSandboxScene extends Phaser.Scene {
     followView(this)
     const camera = this.cameras.main
     camera.setBounds(-T, FLOOR - 40 * T, ROOM_WIDTH + 2 * T, 46 * T)
-    camera.startFollow(player.gameObject, false, 0.14, 0.14)
+    camera.startFollow(player.gameObject, false)
     camera.setDeadzone(24, 40)
     camera.setFollowOffset(0, 36)
 
@@ -291,6 +291,8 @@ export class LoadoutSandboxScene extends Phaser.Scene {
 
     let panelAgeMs = PANEL_REFRESH_MS
     const onUpdate = (_time: number, delta: number) => {
+      const follow = followLerp(delta)
+      camera.setLerp(follow, follow)
       // Rewriting DOM text every frame costs layout time, so the stats refresh 4 times a second.
       panelAgeMs += delta
       if (panelAgeMs < PANEL_REFRESH_MS) return

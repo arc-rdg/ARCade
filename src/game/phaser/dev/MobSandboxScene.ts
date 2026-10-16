@@ -17,7 +17,7 @@ import { createInputLayer } from '../input/InputLayer'
 import { spawnMob, updatePickups, mobXp } from '../mobs'
 import type { Mob, MobDeps } from '../mobs'
 import { createPlayer, markOneWay } from '../player/Player'
-import { followView } from '../view'
+import { followLerp, followView } from '../view'
 
 const T = TILE
 const FLOOR = 0
@@ -122,7 +122,7 @@ export class MobSandboxScene extends Phaser.Scene {
     })
     const camera = this.cameras.main
     camera.setBounds(-T, FLOOR - 40 * T, worldWidth + 2 * T, 46 * T)
-    camera.startFollow(player.gameObject, false, 0.14, 0.14)
+    camera.startFollow(player.gameObject, false)
     camera.setDeadzone(24, 40)
 
     const entries: Entry[] = []
@@ -189,7 +189,9 @@ export class MobSandboxScene extends Phaser.Scene {
 
     this.events.on('update', (_time: number, delta: number) => {
       const target = player.facing() * 56
-      lookAhead += (target - lookAhead) * (1 - Math.exp((-Math.min(delta, 50) / 1000) * 3))
+      const follow = followLerp(delta)
+      camera.setLerp(follow, follow)
+      lookAhead += (target - lookAhead) * (1 - Math.exp((-Math.min(delta, 50) / 1000) * 6))
       camera.setFollowOffset(-lookAhead, 36)
 
       // Mobs beyond SLEEP_VIEWS view widths from the camera skip AI and physics. The wake distance is a
