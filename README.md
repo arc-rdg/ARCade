@@ -85,6 +85,17 @@ interface ArcadeProvenance {
 
 The exact types are in `src/arc/provenance/`.
 
+## Install from a GitHub Release
+
+Until the package is on npm, install a release tarball (pin the version):
+
+```
+npm i https://github.com/arc-rdg/ARCade/releases/download/v0.1.0/arc-rdg-arcade-0.1.0.tgz
+```
+
+It is the same tarball `npm pack` produces, so it is what npm would serve. React and
+`@nfdi4plants/arctrl` are optional peers, as described under Embedding.
+
 ## Development
 
 ```
@@ -108,3 +119,9 @@ app), `tests`.
 The package is not published yet and is marked `"private": true` so that it cannot be by accident.
 To publish: create the `@arc-rdg` organisation on npm, remove `"private": true` from
 `package.json`, run `npm run build && npm run pack:check`, then `npm publish --access public`.
+
+### Releasing
+
+Bump `version` in `package.json` and commit. Then `git tag v<version>` and
+`git push origin main --tags`. The Release workflow checks that the tag matches the version, runs
+the checks, builds, packs and creates the GitHub Release with the tarball attached.

@@ -5,3 +5,4 @@ storybook-static
 .vite
 coverage
 dist-site
+*.tgz
