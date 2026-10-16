@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import type { CreateGame } from '../contracts/events'
+import { cappedCanvasSize } from './canvasCap'
 import { baseGameConfig } from './config'
 import { createGameHandle, createLoopPause } from './gameHandle'
 import { BootScene } from './scenes/BootScene'
@@ -94,7 +95,11 @@ export const createGame: CreateGame = (parent, { bindings }) => {
       }
     },
     resize: (width, height) => {
-      game.scale.resize(Math.max(1, width), Math.max(1, height))
+      const size = cappedCanvasSize(width, height)
+      game.scale.resize(size.width, size.height)
+      // Above the cap the canvas is drawn smaller than its box. CSS scales it up to fill the box.
+      game.canvas.style.width = '100%'
+      game.canvas.style.height = '100%'
       loopPause.drawOnce()
     },
     focus,

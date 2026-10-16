@@ -1,14 +1,16 @@
 import Phaser from 'phaser'
 import { PHYSICS_FPS } from '../contracts/constants'
+import { cappedCanvasSize } from './canvasCap'
 
 // The game config every sandbox and the real game share: Arcade physics on a fixed 120 Hz step,
 // no world gravity (bodies set their own), canvas sized by the caller.
 export function baseGameConfig(parent: HTMLElement, scenes: Phaser.Types.Scenes.SceneType[]): Phaser.Types.Core.GameConfig {
+  const size = cappedCanvasSize(parent.clientWidth, parent.clientHeight)
   return {
     type: Phaser.AUTO,
     parent,
-    width: Math.max(1, parent.clientWidth),
-    height: Math.max(1, parent.clientHeight),
+    width: size.width,
+    height: size.height,
     backgroundColor: '#f6f1e7',
     scale: { mode: Phaser.Scale.NONE },
     physics: {

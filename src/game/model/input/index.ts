@@ -41,11 +41,12 @@ function parseBinding(value: unknown): Binding | null {
 }
 
 // Actions missing from storage (for example added in a later version) keep their defaults.
-export const loadBindings: LoadBindings = () => {
+// A host may keep the bindings under its own storage key.
+export const loadBindings = ((storageKey: string = BINDINGS_STORAGE_KEY) => {
   const result = cloneBindings(DEFAULT_BINDINGS)
   let raw: string | null = null
   try {
-    raw = localStorage.getItem(BINDINGS_STORAGE_KEY)
+    raw = localStorage.getItem(storageKey)
   } catch {
     return result
   }
@@ -66,15 +67,15 @@ export const loadBindings: LoadBindings = () => {
     result[action] = bindings.slice(0, MAX_BINDINGS_PER_ACTION)
   }
   return result
-}
+}) satisfies LoadBindings
 
-export const saveBindings: SaveBindings = (bindings) => {
+export const saveBindings = ((bindings, storageKey: string = BINDINGS_STORAGE_KEY) => {
   try {
-    localStorage.setItem(BINDINGS_STORAGE_KEY, JSON.stringify(bindings))
+    localStorage.setItem(storageKey, JSON.stringify(bindings))
   } catch {
     // Private mode or a full quota. The bindings still apply for this session.
   }
-}
+}) satisfies SaveBindings
 
 export function bindingId(binding: Binding): string {
   return binding.device === 'key' ? `key:${binding.code}` : `mouse:${binding.button}`
