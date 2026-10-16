@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import { PALETTE, SCENE } from '../../contracts/constants'
 import type { PowerUpCard } from '../../contracts/progression'
 import { hashString } from '../../contracts/rng'
@@ -348,8 +349,11 @@ export class StoreScene extends Phaser.Scene {
       const zone = this.cards[i].zone
       // Switched on and off, never removed: Phaser clears an input that is removed and added again
       // in the same frame, which left every card dead after a purchase. The hit area follows setSize.
-      if (i < this.stock.length) zone.setInteractive({ useHandCursor: true })
-      else zone.disableInteractive()
+      if (i < this.stock.length) {
+        zone.setInteractive({ cursor: hoverCursor(this, 'glove') })
+        // A card that cannot be bought shows the crossed circle. It was set once at creation, so it is set again here.
+        if (zone.input) zone.input.cursor = hoverCursor(this, this.cards[i].state === 'buy' ? 'glove' : 'disabled')
+      } else zone.disableInteractive()
     }
   }
 
@@ -380,7 +384,7 @@ export class StoreScene extends Phaser.Scene {
     if (!this.buildPanel) return
     this.buildPanel.setVisible(this.sideLayout || this.buildOpen)
     this.buildBlocker.setVisible(this.buildOpen)
-    if (this.buildOpen) this.buildBlocker.setInteractive({ useHandCursor: true })
+    if (this.buildOpen) this.buildBlocker.setInteractive({ cursor: hoverCursor(this, 'glove') })
     else this.buildBlocker.disableInteractive()
     this.buildButton.setVisible(!this.sideLayout && !this.buildOpen)
     this.leaveButton.setVisible(!this.buildOpen)

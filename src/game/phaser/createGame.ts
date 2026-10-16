@@ -74,7 +74,7 @@ export const createGame: CreateGame = (parent, { bindings }) => {
     new VictoryScene(ctx),
   ]
   const game = new Phaser.Game(baseGameConfig(parent, scenes))
-  ctx.attach(game)
+  ctx.attach(game, parent)
   const loopPause = createLoopPause(game)
   const stopBounds = keepPointerBoundsFresh(game, parent)
   const control = createGameHandle({
@@ -108,6 +108,7 @@ export const createGame: CreateGame = (parent, { bindings }) => {
     destroy: () => {
       loopPause.setPaused(false)
       stopBounds()
+      ctx.detach()
       releaseWebGlContext(game)
       game.destroy(true)
     },

@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import { PALETTE, SCENE } from '../../contracts/constants'
 import type { PowerUpCard } from '../../contracts/progression'
 import { applySpriteRef, CARD_HEIGHT, CARD_WIDTH, glowTexture, stallArt } from '../art'
@@ -80,7 +81,7 @@ export class TraderLootScene extends Phaser.Scene {
     })
     // The hit areas are made once and resized in layout, never re-made.
     this.zones = this.cards.map((_, i) => {
-      const zone = this.add.zone(0, 0, 1, 1).setInteractive({ useHandCursor: true })
+      const zone = this.add.zone(0, 0, 1, 1).setInteractive({ cursor: hoverCursor(this, 'glove') })
       zone.on('pointerdown', () => this.toggle(i))
       return zone
     })

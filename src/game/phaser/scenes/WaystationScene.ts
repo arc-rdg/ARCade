@@ -167,7 +167,7 @@ export class WaystationScene extends GameplayScene {
   protected onTraderLootClosed(takenIds: string[]) {
     this.director.applyLootChoice(takenIds)
     this.player.setBuild(this.director.build)
-    this.loadout.sync(this.director.build)
+    this.syncLoadout()
   }
 
   protected freezeActors(frozen: boolean) {

@@ -1,5 +1,6 @@
 import type Phaser from 'phaser'
 import { PALETTE } from '../../contracts/constants'
+import { holdCursor } from '../cursors'
 import { COOKIE_TEXT } from '../../model/progression'
 import type { View } from '../view'
 import { COOKIE_BANNER_EVENT, COOKIE_SUSPEND_EVENT, type CookieBannerHandle, type MageBand } from './cookieBannerEvent'
@@ -37,6 +38,8 @@ interface Row {
 // its layer, side or the view changes. The big button accepts. A tiny link opens the preferences,
 // a few toggles that change nothing and a second big accept.
 export class CookieBannerPanel {
+  private readonly scene: Phaser.Scene
+  private readonly onShown: (shown: boolean) => void
   private readonly bg: Phaser.GameObjects.Graphics
   private readonly title: Phaser.GameObjects.Text
   private readonly body: Phaser.GameObjects.Text
@@ -55,7 +58,10 @@ export class CookieBannerPanel {
   private side: Side = 'bottom'
   private view: View = { zoom: 1, width: 480, height: 360 }
 
-  constructor(scene: Phaser.Scene) {
+  // `onShown` hears when the banner shows or hides, so the mouse cursor can turn into the cookie.
+  constructor(scene: Phaser.Scene, onShown: (shown: boolean) => void) {
+    this.scene = scene
+    this.onShown = onShown
     this.bg = scene.add.graphics()
     this.title = addText(scene, COOKIE_TEXT.title, 8, { bold: true })
     this.body = addText(scene, COOKIE_TEXT.body, 6.5)
@@ -77,7 +83,12 @@ export class CookieBannerPanel {
     this.targets = [this.acceptBox, this.manage, this.save, ...this.rows.map((row) => row.zone)]
 
     // Interactive once. Showing or hiding only switches `input.enabled`.
-    for (const target of this.targets) target.setInteractive({ useHandCursor: true })
+    for (const target of this.targets) {
+      target.setInteractive()
+      // Held, not set on the widget, so the glove survives the cookie cursor coming and going under the mouse.
+      target.on('pointerover', () => holdCursor(scene, 'glove'))
+      target.on('pointerout', () => holdCursor(scene, null))
+    }
     onClick(scene, this.acceptBox, () => this.accept())
     onClick(scene, this.save, () => this.accept())
     onClick(scene, this.manage, () => this.setLayer('prefs'))
@@ -182,7 +193,12 @@ export class CookieBannerPanel {
   private apply() {
     for (const item of this.items) item.setVisible(false)
     for (const target of this.targets) if (target.input) target.input.enabled = false
-    if (!this.isShown()) return
+    const shown = this.isShown()
+    this.onShown(shown)
+    if (!shown) {
+      holdCursor(this.scene, null)
+      return
+    }
 
     const main = this.layer === 'main'
     const { width: w, height: h } = this.view

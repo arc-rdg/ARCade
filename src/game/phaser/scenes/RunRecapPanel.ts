@@ -1,4 +1,5 @@
 import type Phaser from 'phaser'
+import { dragCursor, hoverCursor, type DragCursor } from '../cursors'
 import { PALETTE } from '../../contracts/constants'
 import type { PlayerBuild } from '../../contracts/progression'
 import { CARDS, corruptedAugment } from '../../model/progression'
@@ -68,6 +69,7 @@ export class RunRecapPanel {
   private hovered = -1
   private wheelRows = 0
   private dragging = false
+  private readonly drag: DragCursor
   private dragStartY = 0
   private dragStartFirst = 0
   private list: Rect = { x: 0, y: 0, w: 0, h: 0 }
@@ -98,8 +100,10 @@ export class RunRecapPanel {
     this.openButton = addButton(scene, 'Your run (B)', 96, 20, () => this.setOpen(true))
     this.closeButton = addButton(scene, 'Back (B)', 80, 18, () => this.setOpen(false))
 
+    this.drag = dragCursor(scene, this.listZone)
     this.listZone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.dragging = true
+      this.drag.setDragging(true)
       this.dragStartY = pointer.y
       this.dragStartFirst = this.first
     })
@@ -115,6 +119,7 @@ export class RunRecapPanel {
     })
     const stop = () => {
       this.dragging = false
+      this.drag.setDragging(false)
     }
     scene.input.on('pointerup', stop)
     scene.input.on('pointerupoutside', stop)
@@ -160,14 +165,17 @@ export class RunRecapPanel {
     if (!view) return
     const shown = this.shown()
     this.blocker.setVisible(this.open)
-    if (this.open) this.blocker.setInteractive({ useHandCursor: true })
+    if (this.open) this.blocker.setInteractive({ cursor: hoverCursor(this.scene, 'glove') })
     else this.blocker.disableInteractive()
     this.openButton.setVisible(!this.side && !this.open)
     this.closeButton.setVisible(this.open)
     for (const part of [this.paper, this.header, this.footer]) part.setVisible(shown)
     this.build.setVisible(shown)
     if (shown) this.listZone.setInteractive()
-    else this.listZone.disableInteractive()
+    else {
+      this.listZone.disableInteractive()
+      this.drag.reset()
+    }
     if (!shown) {
       this.empty.setVisible(false)
       this.refresh()

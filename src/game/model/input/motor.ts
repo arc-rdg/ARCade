@@ -222,8 +222,9 @@ export function airHeavyRefused(state: MotorState, airborne: boolean, up: boolea
   return state.plungeUsed && airborne && !up && !dashing
 }
 
-// The pointer counts as in use for this long after it last moved or a mouse button went down.
-export const AIM_RECENT_MS = 3000
+// The pointer counts as in use for this long after it last moved or a mouse button went down. The
+// attacks follow the cursor, and the weapon cursor stays visible, for exactly this long.
+export const AIM_RECENT_MS = 10000
 // A cursor this close to the mage (world units, horizontally) does not turn it.
 export const AIM_DEAD_ZONE = 6
 

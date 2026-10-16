@@ -152,7 +152,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
     this.overButtons = 0
     this.mobInfo = new MobInfoPanel(this)
     this.history = new LevelHistoryPanel(this, () => this.closeHistory())
-    this.cookies = new CookieBannerPanel(this)
+    this.cookies = new CookieBannerPanel(this, (shown) => this.ctx.cursors.setCookie(shown))
     // A click pins the panel, hovering only shows it until the pointer leaves. A boss sends its
     // description ready-made, a mob its spec.
     const showInfo = (info: InspectInfo | undefined, segment: Segment | null | undefined, anchor: NormRect | undefined, pinned: boolean) => {

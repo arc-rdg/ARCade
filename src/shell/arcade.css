@@ -389,6 +389,11 @@
   gap: calc(8 * var(--u)) calc(10 * var(--u));
 }
 
+/* The system hand, for a screen that gets no scribble glove (see cursors.css). */
+.arcade-root :is(button, a, [role='button'], summary) {
+  cursor: pointer;
+}
+
 /* Game-style buttons: thick outline, an offset shadow and a press that sinks into it. */
 .arcade-root .arcade-btn {
   margin: 0;
@@ -397,7 +402,6 @@
   font-weight: 800;
   line-height: 1.25;
   color: var(--arcade-ink);
-  cursor: pointer;
   background: var(--arcade-paper);
   border: 3px solid var(--arcade-ink);
   border-radius: 12px 5px 13px 6px / 6px 13px 5px 12px;
@@ -577,7 +581,6 @@
   font-size: max(20px, 3cqmin);
   font-weight: 800;
   color: var(--arcade-ink);
-  cursor: pointer;
   background: rgb(246 241 231 / 0.7);
   border: 0;
 }
@@ -599,7 +602,6 @@
   padding: 0;
   font-size: max(14px, 1.6cqmin);
   color: var(--arcade-ink);
-  cursor: pointer;
   background: rgb(245 230 211 / 0.85);
   border: 2px solid var(--arcade-ink);
   border-radius: 10px 4px 11px 5px / 5px 11px 4px 10px;
@@ -736,7 +738,6 @@
   font: inherit;
   font-size: max(11px, 1.3cqmin);
   color: var(--arcade-muted);
-  cursor: pointer;
   background: none;
   border: 0;
   border-radius: 4px;

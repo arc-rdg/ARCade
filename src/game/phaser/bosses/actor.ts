@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import type { Annotation } from '../../../arc/provenance/types'
 import type { PartRef, ProjectileArt, SpriteRef } from '../../contracts/art'
 import type { Combatant, HitEvent, KillerInfo, StatusEffect } from '../../contracts/combat'
@@ -747,7 +748,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
   function setInspectable(on: boolean) {
     if (destroyed) return
     const can = on && state === 'fighting'
-    if (can && !sprite.input?.enabled) sprite.setInteractive({ useHandCursor: true })
+    if (can && !sprite.input?.enabled) sprite.setInteractive({ cursor: hoverCursor(sprite.scene, 'magnifier') })
     else if (!can && sprite.input?.enabled) sprite.disableInteractive()
     if (!on) setHighlight(0)
   }

@@ -1,4 +1,5 @@
 import type Phaser from 'phaser'
+import { dragCursor, type DragCursor } from '../cursors'
 import { PALETTE } from '../../contracts/constants'
 import type { Rarity } from '../../contracts/progression'
 import { CORRUPTED_COLOR } from '../art'
@@ -46,6 +47,7 @@ export class LevelHistoryPanel {
   private capacity = 1
   private wheelRows = 0
   private dragging = false
+  private readonly drag: DragCursor
   private dragStartY = 0
   private dragStartFirst = 0
   private box = { x: 0, y: 0, w: 0, h: 0 }
@@ -63,8 +65,10 @@ export class LevelHistoryPanel {
     this.thumb = scene.add.rectangle(0, 0, 3, 1, PALETTE.navy, 0.8).setOrigin(0.5, 0)
     this.back = addButton(scene, 'Back', 80, 18, onBack)
 
+    this.drag = dragCursor(scene, this.swallow)
     this.swallow.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       this.dragging = this.open
+      this.drag.setDragging(this.dragging)
       this.dragStartY = pointer.y
       this.dragStartFirst = this.first
     })
@@ -75,6 +79,7 @@ export class LevelHistoryPanel {
     })
     const stop = () => {
       this.dragging = false
+      this.drag.setDragging(false)
     }
     scene.input.on('pointerup', stop)
     scene.input.on('pointerupoutside', stop)
@@ -107,6 +112,7 @@ export class LevelHistoryPanel {
     if (!this.open) return
     this.open = false
     this.dragging = false
+    this.drag.reset()
     this.apply(false)
   }
 

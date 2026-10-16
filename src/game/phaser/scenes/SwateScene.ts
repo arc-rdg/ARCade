@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import { PALETTE, SCENE } from '../../contracts/constants'
 import type { PowerUpCard, Rarity } from '../../contracts/progression'
 import { CARDS, corruptedAugment, swapCost, swateOptions, type SwateMood, type SwateOption } from '../../model/progression'
@@ -449,8 +450,8 @@ export class SwateScene extends Phaser.Scene {
       // The zone follows the row; it is switched, never removed, so Phaser keeps the hit area.
       row.zone.setPosition(x, top).setSize(w - 6, ROW_H)
       row.zone.setInteractive()
-      // Phaser 4.2.1 ignores useHandCursor once the zone is interactive, so the cursor is set directly.
-      if (row.zone.input) row.zone.input.cursor = entry.enabled ? 'pointer' : 'default'
+      // The zone is already interactive after the first row layout, so the cursor is set directly.
+      if (row.zone.input) row.zone.input.cursor = hoverCursor(this, entry.enabled ? 'glove' : 'disabled')
     }
     const total = this.entries.length
     const scrolls = !confirming && total > this.capacity

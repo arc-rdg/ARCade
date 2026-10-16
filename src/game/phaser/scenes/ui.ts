@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import { PALETTE } from '../../contracts/constants'
 import { cssColor } from '../color'
 import { followView, type View } from '../view'
@@ -94,7 +95,7 @@ export function onClick(
 export function addButton(scene: Phaser.Scene, label: string, width: number, height: number, onPress: () => void, onHover?: (over: boolean) => void): Button {
   const box = scene.add.rectangle(0, 0, width, height, PALETTE.navy).setStrokeStyle(1, PALETTE.cream)
   const text = addText(scene, label, Math.round(height * 0.45), { bold: true }).setOrigin(0.5)
-  box.setInteractive({ useHandCursor: true })
+  box.setInteractive({ cursor: hoverCursor(scene, 'glove') })
   box.on('pointerover', () => {
     box.setFillStyle(PALETTE.blue)
     onHover?.(true)
@@ -112,7 +113,7 @@ export function addButton(scene: Phaser.Scene, label: string, width: number, hei
     setVisible(visible) {
       box.setVisible(visible)
       text.setVisible(visible)
-      if (visible) box.setInteractive({ useHandCursor: true })
+      if (visible) box.setInteractive({ cursor: hoverCursor(scene, 'glove') })
       else box.disableInteractive()
     },
   }

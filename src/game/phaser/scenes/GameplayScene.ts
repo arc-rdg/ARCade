@@ -118,7 +118,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     })
     const art = this.ctx.art
     this.combat = createCombatWorld(this, { art })
-    this.controls = createInputLayer(this, this.ctx.bindings)
+    this.controls = createInputLayer(this, this.ctx.bindings, (active) => this.ctx.cursors.setAimActive(active))
     this.frame = this.controls.frame()
     // Registered before the player's own listener, so the scene reads the input first and can
     // swallow it while the world is held.
@@ -149,7 +149,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
       secondWind: director.secondWind,
       captureMouse: (captured) => this.controls.setMouseCaptured(captured),
     })
-    this.loadout.sync(director.build)
+    this.syncLoadout()
     this.combat.on('kill', (event) => this.onKill(event))
     // Data Leak: a hit spills fragments.
     this.player.on('damaged', () => this.director.leakFragments())
@@ -287,9 +287,24 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.ctx.emit({ type: 'paused', paused })
   }
 
+  // Hands the build to the loadout and the light weapon to the mouse cursor.
+  protected syncLoadout() {
+    const build = this.director.build
+    this.loadout.sync(build)
+    this.ctx.cursors.setLight(build.weapons.light.id)
+    this.syncCursorHold()
+  }
+
+  // The weapon cursor gives way to the arrow while a pause or an overlay holds the world. The short
+  // banner holds do not count.
+  private syncCursorHold() {
+    this.ctx.cursors.setHeld(this.holds.size > (this.holds.has('banner') ? 1 : 0))
+  }
+
   protected setHold(reason: Hold, on: boolean) {
     if (on) this.holds.add(reason)
     else this.holds.delete(reason)
+    this.syncCursorHold()
     const frozen = this.holds.size > 0
     if (frozen === this.frozen) return
     this.frozen = frozen
@@ -455,7 +470,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.director.setHp(this.player.hp())
     this.director.chooseCard(cardId)
     this.player.setBuild(this.director.build)
-    this.loadout.sync(this.director.build)
+    this.syncLoadout()
     if (this.director.pendingLevelUps === 0) {
       this.ctx.closeLevelUp()
       this.setHold('levelUp', false)
@@ -485,7 +500,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.director.setHp(this.player.hp())
     if (!this.director.refine(index, fromId, toId)) return false
     this.player.setBuild(this.director.build)
-    this.loadout.sync(this.director.build)
+    this.syncLoadout()
     return true
   }
 
@@ -495,7 +510,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     const deal = this.director.submitToDatenkrake(index)
     if (!deal) return null
     this.player.setBuild(this.director.build)
-    this.loadout.sync(this.director.build)
+    this.syncLoadout()
     return deal
   }
 
@@ -524,7 +539,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.director.setHp(this.player.hp())
     if (!this.director.buy(index, cardId)) return false
     this.player.setBuild(this.director.build)
-    this.loadout.sync(this.director.build)
+    this.syncLoadout()
     return true
   }
 

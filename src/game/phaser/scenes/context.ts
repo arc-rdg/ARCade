@@ -8,6 +8,8 @@ import type { StaggerState } from '../bosses'
 import type { LoadoutWithStatus } from '../player/weapons'
 import type { PowerUpCard } from '../../contracts/progression'
 import type { DatenkrakeDeal } from '../../model/progression'
+import { attachCursors, releaseCursors } from '../cursors'
+import { CursorDirector } from '../cursors/director'
 import { getArt } from './art'
 import { RunDirector, type RunStage } from './RunDirector'
 
@@ -85,7 +87,10 @@ export class RunContext {
   gameplay: GameplayControl | null = null
   hud: HudControl | null = null
   externalPause = false
+  // Which mouse cursor the screen shows. The scenes report what changed.
+  readonly cursors = new CursorDirector()
   private game: Phaser.Game | null = null
+  private host: HTMLElement | null = null
   private readonly emitEvent: (event: GameEvent) => void
 
   constructor(bindings: Bindings, emit: (event: GameEvent) => void) {
@@ -93,8 +98,15 @@ export class RunContext {
     this.emitEvent = emit
   }
 
-  attach(game: Phaser.Game): void {
+  attach(game: Phaser.Game, host: HTMLElement): void {
     this.game = game
+    this.host = host
+    this.cursors.bind(attachCursors(game, host))
+  }
+
+  detach(): void {
+    this.cursors.bind(null)
+    if (this.game && this.host) releaseCursors(this.game, this.host)
   }
 
   emit(event: GameEvent): void {
@@ -115,6 +127,7 @@ export class RunContext {
     for (const key of RUN_SCENES) if (isRunning(scenes, key)) this.sceneOp('stop', key)
     this.director = null
     this.active = null
+    this.cursors.reset()
   }
 
   quitToMenu(): void {

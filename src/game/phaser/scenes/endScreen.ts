@@ -19,6 +19,7 @@ const KEY_DELAY_MS = 400
 // on (x, y). A key acts on a fresh keydown only. onCanvasKey drops auto-repeats, which is all that a
 // key held since before the screen opened produces.
 export function addEndButtons(scene: Phaser.Scene, ctx: RunContext): (x: number, y: number) => void {
+  ctx.cursors.setEnd(true)
   const openedAt = performance.now()
   let chosen = false
   const pick = (choice: (typeof CHOICES)[number]['choice']) => {

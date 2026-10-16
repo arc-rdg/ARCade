@@ -178,6 +178,7 @@ src/game/
     art/           roughjs scribble art, cached textures with 3 boiling variants
     combat/        hitboxes, projectiles, damage, hit-stop and feedback
     input/         DOM keyboard and mouse listeners on the canvas
+    cursors/       the mouse cursors: roughjs art, the style writer and the director that picks the kind
     player/        the mage, its attack machine and the staff
     player/weapons/ the other weapons, mechanics, legendaries and abilities (the loadout)
     mobs/          mob AI, passives, pickups and speech bubbles
@@ -397,7 +398,7 @@ and the bounces still give back no jump, air dash or coyote time.
 Attacks during a dash, or up to 80 ms after it, play the dash light (no lock) or the
 dash heavy. Attacks with up held play an overhead version, and ranged weapons keep aiming at the cursor.
 When an attack starts (every light, heavy and variant, and each hit of a combo), the mage turns to the
-side of the cursor if the pointer moved or a mouse button went down in the last 3 s (`AIM_RECENT_MS`;
+side of the cursor if the pointer moved or a mouse button went down in the last 10 s (`AIM_RECENT_MS`;
 a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). So you can swing one way
 while walking the other. Facing stays locked for the rest of the attack and movement stays free.
 Lunges still push towards the facing. Without a recent pointer, and for the trader AI, which sends no
@@ -681,6 +682,45 @@ The target is a steady 60 fps on an integrated GPU.
 - The HUD redraws an element only when its value changes.
 - A paused game (canvas blurred or dashlet scrolled out of view) stops the render loop
   (`createLoopPause` in `phaser/gameHandle.ts`).
+
+## Mouse cursors
+
+The mouse is the aim, so the cursor is part of the game. Nine small scribble cursors replace the system one: a sword (melee
+light weapons: staff, scalpel, sequence whip), a star-cross (ranged ones: wand, pipette pistol, ARCitect, ARC Commander), a
+cookie, a glove, a crossed circle, an open and a closed hand, a magnifier and an arrow. Only the light weapon picks the sword or
+the star-cross (`weaponCursor` in `model/input/cursor.ts`). A heavy weapon never changes it.
+
+| Where | Cursor | Set by |
+| --- | --- | --- |
+| Play, pointer used in the last 10 s | sword or star-cross, hotspot at the tip or the centre | `GameplayScene.syncLoadout` reports the light weapon |
+| Play, pointer idle for 10 s | hidden (`cursor: none`) | `InputLayer` tells when the window ends or a move or click restarts it |
+| Cookie banner up | cookie, and the glove over the banner's own buttons | `CookieBannerPanel` |
+| Pause, level-up, store, SWATE, Datenkrake, loot, death, victory | arrow, never hidden | `GameplayScene.setHold`, `addEndButtons` |
+| Buttons, cards, rows | glove | `hoverCursor(scene, 'glove')` as the `cursor` of `setInteractive` |
+| A store card that cannot be bought, a SWATE row that cannot be taken | crossed circle | `StoreScene.enableInput`, `SwateScene` |
+| Level history and run recap lists | open hand, closed hand while dragging | `dragCursor` |
+| Mobs and bosses while paused | magnifier | `mob.ts`, `bosses/actor.ts` |
+
+The sword and the star-cross show exactly while the attacks follow the cursor: both use the 10 s window of `AIM_RECENT_MS`, so
+a keyboard-only player sees no cursor and the mage keeps the held direction. The shell (start screen, settings, changelog,
+"Click to play") has the arrow and the glove too, baked as data URLs into `src/shell/cursors.css` by
+`scripts/render-cursors.mjs` from the same art, because roughjs loads with the game and not with the start screen. Run the script
+after changing the arrow or glove art. The rules sit under `.arcade-root`, only apply to a mouse (`hover: hover`, `pointer: fine`)
+and lose to the inline cursor the game puts on its canvas and host element.
+
+How it works:
+
+- `cursors/art.ts` draws each cursor once when the game is created, at 32 px and at 64 px for sharp screens, and keeps
+  CSS values with explicit hotspots and a keyword fallback (`crosshair`, `pointer`, `grab`, `not-allowed`). The 1x image stays at
+  32 px, the size every browser accepts. The standard `image-set()`, the `-webkit-` form or a plain `url()` is picked by asking the
+  browser which one it accepts, because a browser that does not know the function drops the whole declaration.
+- `cursors/controller.ts` writes the value to the canvas and to the host element (so fullscreen and the margin around a
+  smaller canvas keep it) and sets Phaser's default cursor, which Phaser restores after a widget's own. It writes only when the kind
+  changes, never per frame. `hold(kind)` shows a kind over the base one for a drag.
+- `cursors/director.ts` (`RunContext.cursors`) combines the light weapon, the menu state, the cookie banner and the pointer window
+  into one kind with `cursorFor`.
+- A touch screen (`(hover: none)` or `(pointer: coarse)`) gets no custom cursors. Nothing is drawn.
+- The cursors never leave the game: the style sits on the game's own canvas and host element and is removed with the game.
 
 ## Pause menu
 

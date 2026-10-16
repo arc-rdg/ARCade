@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import { PALETTE, SCENE } from '../../contracts/constants'
 import type { PowerUpCard } from '../../contracts/progression'
 import { hashString } from '../../contracts/rng'
@@ -398,7 +399,7 @@ export class LevelUpScene extends Phaser.Scene {
       const zone = this.cards[i].zone
       // Switched on and off, never removed: Phaser clears an input that is removed and added again
       // in the same frame, which left every card dead after a resize. The hit area follows setSize.
-      if (this.phase === 'cards' && i < this.offer.length) zone.setInteractive({ useHandCursor: true })
+      if (this.phase === 'cards' && i < this.offer.length) zone.setInteractive({ cursor: hoverCursor(this, 'glove') })
       else zone.disableInteractive()
     }
   }
@@ -553,7 +554,7 @@ export class LevelUpScene extends Phaser.Scene {
     const cards = this.phase === 'cards'
     this.buildPanel.setVisible((side && cards) || this.buildOpen)
     this.buildBlocker.setVisible(this.buildOpen)
-    if (this.buildOpen) this.buildBlocker.setInteractive({ useHandCursor: true })
+    if (this.buildOpen) this.buildBlocker.setInteractive({ cursor: hoverCursor(this, 'glove') })
     else this.buildBlocker.disableInteractive()
     this.buildButton.setVisible(!side && cards && this.offer.length > 0 && !this.buildOpen)
     this.skipButton.setVisible(cards && this.offer.length > 0 && !this.buildOpen)

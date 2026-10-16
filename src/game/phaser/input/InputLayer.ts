@@ -21,7 +21,9 @@ export interface InputLayer {
 
 // Reads keys and mouse buttons with DOM listeners on the game canvas. Phaser's keyboard plugin
 // stays off (keyboard: false in the game config) so it never captures keys for the whole page.
-export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): InputLayer {
+// `onAimActive` hears when the pointer counts as in use (it moved or a button went down within
+// AIM_RECENT_MS) and when it stops counting, on those changes only. The weapon cursor follows it.
+export function createInputLayer(scene: Phaser.Scene, bindings: Bindings, onAimActive?: (active: boolean) => void): InputLayer {
   const canvas = scene.game.canvas
   canvas.tabIndex = 0
 
@@ -41,6 +43,18 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
   }
   // When the pointer last moved or a mouse button went down, in scene time.
   let pointerUsedAt = -Infinity
+  let aimActive = false
+  const setAimActive = (active: boolean) => {
+    if (active === aimActive) return
+    aimActive = active
+    onAimActive?.(active)
+  }
+  const markUsed = () => {
+    pointerUsedAt = scene.time.now
+    setAimActive(true)
+  }
+  // A new layer starts with an unused pointer, so the cursor hides until the mouse moves.
+  onAimActive?.(false)
   // The cursor in canvas pixels, read from the DOM events. Phaser's pointer skips mouse events that
   // another listener already cancelled (mouse gesture add-ons do this), so it can stop moving while
   // clicks still reach this layer and start attacks.
@@ -62,7 +76,7 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
     return true
   }
   const onPointerMove = (event: MouseEvent) => {
-    if (trackPointer(event)) pointerUsedAt = scene.time.now
+    if (trackPointer(event)) markUsed()
   }
 
   const mapBindings = (b: Bindings) => {
@@ -115,7 +129,7 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
     // Phaser cancels mousedown, which stops the browser from focusing the canvas on click.
     canvas.focus()
     trackPointer(event)
-    pointerUsedAt = scene.time.now
+    markUsed()
     // Phaser cancels mousedown too, but only while nothing else did first. The right button must
     // never reach the browser's menu or gestures.
     if (event.button === 2) event.preventDefault()
@@ -169,6 +183,7 @@ export function createInputLayer(scene: Phaser.Scene, bindings: Bindings): Input
       out.aim.x = aimPoint.x
       out.aim.y = aimPoint.y
       out.aim.recent = scene.time.now - pointerUsedAt <= AIM_RECENT_MS
+      setAimActive(out.aim.recent)
       return out
     },
     setBindings(next) {

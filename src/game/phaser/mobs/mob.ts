@@ -1,4 +1,5 @@
 import Phaser from 'phaser'
+import { hoverCursor } from '../cursors'
 import type { SpriteRef } from '../../contracts/art'
 import type { Combatant, CombatWorld, HitEvent, StatusEffect } from '../../contracts/combat'
 import { DEPTH, PALETTE } from '../../contracts/constants'
@@ -1149,7 +1150,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     if (destroyed) return
     const can = inspectable && !asleep && !dead
     if (can) {
-      if (!sprite.input?.enabled) sprite.setInteractive({ useHandCursor: true })
+      if (!sprite.input?.enabled) sprite.setInteractive({ cursor: hoverCursor(sprite.scene, 'magnifier') })
     } else if (sprite.input?.enabled) sprite.disableInteractive()
   }
 
