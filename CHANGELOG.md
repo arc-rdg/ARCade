@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.4 - 2026-10-16
+
+### ✨ Added
+
+- SWATE (deprecated) is a new chance encounter in the waystation, a spreadsheet on legs that was recently renamed. Press the interact key near it to refine your augments: swap one stat card, mechanic, ability or legendary augment for another of the same rarity, for twice the FAIR trader's price. You get one swap per boss slain. Weapons and corrupted augments stay out, and every swap shows up in the level history and the run recap.
+- A waystation now holds at most one chance encounter, the Datenkrake or SWATE. Each one is less likely to come back after it has appeared once in a run.
+
+### 🐛 Fixed
+
+- Losing a stat card to the Datenkrake or swapping it away at SWATE no longer costs more than the card gave. Before, a card at its stat limit, or one under a corrupted augment that changes the same stat, took too much with it. Losing one of two Rapid Release cards under Shadow IT, for example, now leaves a 3 s dash cooldown instead of 2.5 s.
+
 ## 0.1.3 - 2026-10-16
 
 ### ✨ Added
