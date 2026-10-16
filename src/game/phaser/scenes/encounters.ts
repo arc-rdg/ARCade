@@ -3,7 +3,7 @@ import type { Combatant, CombatWorld, HitEvent } from '../../contracts/combat'
 import { DEPTH, PALETTE, TILE } from '../../contracts/constants'
 import { HOSTILE_STRIKE } from '../../model/progression'
 import type { EncounterKind } from '../../model/run'
-import { ARM_LENGTH, applySpriteRef, DATENKRAKE_ARMS, DATENKRAKE_HEIGHT, DATENKRAKE_WIDTH, datenkrakeArmArt, datenkrakeArt, stallArt, TRADER_HEIGHT, TRADER_WIDTH, traderArt } from '../art'
+import { ARM_LENGTH, applySpriteRef, DATENKRAKE_ARMS, DATENKRAKE_HEIGHT, DATENKRAKE_WIDTH, datenkrakeArmArt, datenkrakeArt, stallArt, SWATE_HEIGHT, swateArt, TRADER_HEIGHT, TRADER_WIDTH, traderArt } from '../art'
 import { cssColor } from '../color'
 import { acquireBubble } from '../mobs/bubbles'
 import type { Player } from '../player/Player'
@@ -35,6 +35,8 @@ export interface EncounterHost {
   readonly combat: CombatWorld
   // Holds the world and opens the FAIR trade store of this waystation.
   openStore(): void
+  // Holds the world and opens the SWATE (deprecated) screen.
+  openSwate(): void
   // Holds the world while an encounter animates on its own.
   hold(on: boolean): void
   // Holds the world and opens the Datenkrake overlay.
@@ -346,7 +348,69 @@ function spawnDatenkrake(host: EncounterHost, x: number): Encounter {
   }
 }
 
+const SWATE_BODY = 60
+const SWATE_BOB_MS = 1500
+const SWATE_BOB = 1.2
+
+// SWATE (deprecated), a table editor on legs. It calls out when the mage arrives, opens its refine
+// screen on up and says goodbye in a bubble when the screen closes. The screen is SwateScene.
+function spawnSwate(host: EncounterHost, x: number): Encounter {
+  const { scene, director, floorY } = host
+  const ref = swateArt(scene)
+  const sprite = scene.add.sprite(x, floorY, ref.textureKey).setDepth(DEPTH.tiles + 1)
+  applySpriteRef(sprite, ref)
+  const top = floorY - SWATE_HEIGHT
+  // The reach covers the table, not the magnifier and the badge that stick out, so it stays clear of
+  // the trader's even in a narrow room.
+  const zone = new Phaser.Geom.Rectangle(x - SWATE_BODY / 2 - REACH, top, SWATE_BODY + 2 * REACH, SWATE_HEIGHT)
+  let bubble: Phaser.GameObjects.Text | null = null
+  let bubbleMs = 0
+  let callOut = false
+  let clock = 0
+  const hide = () => {
+    bubbleMs = 0
+    bubble?.setVisible(false)
+  }
+  const say = (line: string, ms: number) => {
+    bubble ??= acquireBubble(scene).setWordWrapWidth(BUBBLE_WRAP, true).setAlign('center')
+    bubble.setText(line).setOrigin(0.5, 1).setPosition(x, top - 4).setVisible(true)
+    bubbleMs = ms
+  }
+  return {
+    zone,
+    action: 'Refine annotations',
+    promptX: x,
+    promptY: top - 4,
+    interact() {
+      hide()
+      host.openSwate()
+    },
+    closed() {
+      callOut = false
+      say(director.swateLine('bye'), GOODBYE_MS)
+    },
+    near(near) {
+      if (near && callOut) hide()
+    },
+    arrived() {
+      callOut = true
+      say(director.swateLine('arrive'), CALL_OUT_MS)
+    },
+    talking: () => bubbleMs > 0,
+    update(dtMs) {
+      if (bubbleMs <= 0) return
+      bubbleMs -= dtMs
+      if (bubbleMs <= 0) hide()
+    },
+    frame(deltaMs) {
+      clock += deltaMs
+      sprite.setY(floorY - Math.abs(Math.sin((clock / SWATE_BOB_MS) * Math.PI)) * SWATE_BOB)
+    },
+  }
+}
+
 export const ENCOUNTER_SPAWNERS: Record<EncounterKind, EncounterSpawner> = {
   trader: spawnTrader,
   datenkrake: spawnDatenkrake,
+  swate: spawnSwate,
 }

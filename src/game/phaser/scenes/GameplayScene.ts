@@ -23,7 +23,7 @@ import type { DatenkrakeDeal } from '../../model/progression'
 
 // 'encounter' holds the world while a waystation encounter plays out on its own (the Datenkrake's
 // grab), 'datenkrake' while its overlay is open, 'loot' while the beaten FAIR trader's loot shows.
-type Hold = 'banner' | 'levelUp' | 'store' | 'datenkrake' | 'encounter' | 'loot' | 'pause' | 'external' | 'over'
+type Hold = 'banner' | 'levelUp' | 'store' | 'swate' | 'datenkrake' | 'encounter' | 'loot' | 'pause' | 'external' | 'over'
 
 export interface LevelSetup {
   colliders: Phaser.Types.Physics.Arcade.ArcadeColliderType[]
@@ -52,6 +52,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
   private bannerMs = 0
   private lookAhead = 0
   private inspector: Inspector | null = null
+  private swateJustClosed = false
   private pauseDim: Phaser.GameObjects.Rectangle | null = null
   // The interaction prompt ("[W] Enter", "[W] Trade"), one per scene, shown by showPrompt.
   private prompt: Phaser.GameObjects.Text | null = null
@@ -225,9 +226,14 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
       if (pressed.has('pause') || pressed.has('left') || pressed.has('right')) this.closeStore()
       return
     }
+    // SWATE reads its own keys (Escape steps back), so nothing else may react meanwhile.
+    if (this.holds.has('swate')) return
+    // Escape leaves SWATE and is queued as a pause press too; the first step after the close drops it.
+    const dropPause = this.swateJustClosed
+    this.swateJustClosed = false
     // In the Datenkrake's grip there is nothing to do but choose, and the loot is read to the end.
     if (this.holds.has('datenkrake') || this.holds.has('encounter') || this.holds.has('loot')) return
-    if (pressed.has('pause')) this.togglePause()
+    if (pressed.has('pause') && !dropPause) this.togglePause()
   }
 
   // The direction left or right holds, 0 for neither or both. Valid inside stepWorld.
@@ -270,7 +276,7 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
   }
 
   private togglePause() {
-    if (this.holds.has('levelUp') || this.holds.has('store') || this.holds.has('datenkrake') || this.holds.has('encounter') || this.holds.has('loot')) return
+    if (this.holds.has('levelUp') || this.holds.has('store') || this.holds.has('swate') || this.holds.has('datenkrake') || this.holds.has('encounter') || this.holds.has('loot')) return
     if (this.holds.has('over') || this.holds.has('external')) return
     const paused = !this.holds.has('pause')
     this.setHold('pause', paused)
@@ -332,6 +338,13 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     if (this.holds.size > 0) return
     this.setHold('store', true)
     this.ctx.openStore(index)
+  }
+
+  // Holds the world while the SWATE (deprecated) screen of this waystation is open.
+  protected openSwate(index: number) {
+    if (this.holds.size > 0) return
+    this.setHold('swate', true)
+    this.ctx.openSwate(index)
   }
 
   // Holds the world while an encounter plays an animation of its own.
@@ -455,6 +468,25 @@ export abstract class GameplayScene extends Phaser.Scene implements GameplayCont
     this.ctx.closeStore()
     this.setHold('store', false)
     this.onStoreClosed()
+  }
+
+  closeSwate() {
+    if (!this.holds.has('swate')) return
+    this.ctx.closeSwate()
+    this.setHold('swate', false)
+    this.swateJustClosed = true
+    this.onSwateClosed()
+  }
+
+  protected onSwateClosed(): void {}
+
+  // One swap at SWATE (deprecated). The live hp goes into the build first, like for a purchase.
+  refineCard(index: number, fromId: string, toId: string): boolean {
+    this.director.setHp(this.player.hp())
+    if (!this.director.refine(index, fromId, toId)) return false
+    this.player.setBuild(this.director.build)
+    this.loadout.sync(this.director.build)
+    return true
   }
 
   // "Submit": the Datenkrake swaps an augment for a corrupted one. The overlay shows the deal.

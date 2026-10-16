@@ -5,7 +5,7 @@ import type { PlayerBuild, PowerUpCard } from '../../contracts/progression'
 import { createRng, type Rng } from '../../contracts/rng'
 import type { RunPlan, Segment } from '../../contracts/run'
 import { bossFromNode, finalBossFromPlan } from '../../model/content'
-import { appendLevelUp, datenkrakeSourceText, lootSourceText, sourceText, statStacks, storeSourceText, type LevelUpRecord } from './levelHistory'
+import { appendLevelUp, datenkrakeSourceText, lootSourceText, sourceText, statStacks, storeSourceText, swateSourceText, type LevelUpRecord } from './levelHistory'
 import {
   addXp,
   applyCard,
@@ -29,12 +29,15 @@ import {
   DATENKRAKE_LINES,
   levelUpSummary,
   priceOf,
+  refineCard,
   rollOffer,
   rollStock,
   submitToDatenkrake,
+  SWATE_LINES,
+  swapsAllowed,
   TRADER_LINES,
 } from '../../model/progression'
-import type { BossCharge, DatenkrakeDeal, DatenkrakeMood, LevelUpSummary, StrikeState, TraderFightMood, TraderMood } from '../../model/progression'
+import type { BossCharge, DatenkrakeDeal, DatenkrakeMood, LevelUpSummary, Refined, StrikeState, SwateMood, TraderFightMood, TraderMood } from '../../model/progression'
 
 export type RunStage =
   | { kind: 'stretch'; index: number }
@@ -96,6 +99,10 @@ export class RunDirector {
   private readonly stocks = new Map<number, PowerUpCard[]>()
   private readonly traderLines: Record<TraderMood, () => string>
   private readonly datenkrakeLines: Record<DatenkrakeMood, () => string>
+  private readonly swateLines: Record<SwateMood, () => string>
+  // The swaps SWATE (deprecated) did in the waystation after each node boss. Unused swaps stay for
+  // that waystation and are gone with it.
+  private readonly swatesUsed = new Map<number, number>()
   // The waystations whose Datenkrake was dealt with, so leaving and coming back does not repeat it.
   private readonly datenkrakeDone = new Map<number, 'fought' | 'submitted'>()
   // The FAIR trader can be attacked (model/progression/traderFight.ts): the strikes per waystation,
@@ -132,6 +139,10 @@ export class RunDirector {
     const pickers = {} as Record<DatenkrakeMood, () => string>
     for (const mood of Object.keys(DATENKRAKE_LINES) as DatenkrakeMood[]) pickers[mood] = createLinePicker(DATENKRAKE_LINES[mood], kraken.fork(mood))
     this.datenkrakeLines = pickers
+    const swate = this.rng.fork('swate-lines')
+    const swatePickers = {} as Record<SwateMood, () => string>
+    for (const mood of Object.keys(SWATE_LINES) as SwateMood[]) swatePickers[mood] = createLinePicker(SWATE_LINES[mood], swate.fork(mood))
+    this.swateLines = swatePickers
     const unfair = this.rng.fork('trader-fight-lines')
     this.warningLines = {
       1: createLinePicker(TRADER_WARNINGS[1], unfair.fork('1')),
@@ -261,6 +272,37 @@ export class RunDirector {
     const gain = CORRUPTION.acceptAllCookies.maxHpPerKill
     this.build = { ...this.build, hp: this.build.hp + gain, stats: { ...this.build.stats, maxHp: this.build.stats.maxHp + gain } }
     return true
+  }
+
+  swateLine(mood: SwateMood): string {
+    return this.swateLines[mood]()
+  }
+
+  // The swaps SWATE (deprecated) has left in the waystation after node boss `index`: one per node
+  // boss beaten so far (that boss included), less the ones already made here.
+  swapsLeft(index: number): number {
+    return Math.max(0, swapsAllowed(index + 1) - (this.swatesUsed.get(index) ?? 0))
+  }
+
+  // Swaps `fromId` for `toId` at SWATE (deprecated) in the waystation after node boss `index`. The
+  // fragments pay, the history keeps "Refined: Old to New". Null when the swap cannot happen.
+  refine(index: number, fromId: string, toId: string): Refined | null {
+    const result = refineCard(this.build, statStacks(this.history), this.fragments, this.swapsLeft(index), fromId, toId)
+    if (!result) return null
+    this.build = result.build
+    this.fragments = result.fragments
+    this.swatesUsed.set(index, (this.swatesUsed.get(index) ?? 0) + 1)
+    this.history = appendLevelUp(this.history, {
+      level: this.build.level,
+      cardId: result.to.id,
+      cardName: result.to.name,
+      rarity: result.to.rarity,
+      offered: [],
+      source: swateSourceText(this.plan, index, this.bossSpec(index).label),
+      price: result.cost,
+      refined: { fromId: result.from.id, fromName: result.from.name },
+    })
+    return result
   }
 
   datenkrakeLine(mood: DatenkrakeMood): string {

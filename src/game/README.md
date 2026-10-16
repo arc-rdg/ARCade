@@ -182,7 +182,7 @@ src/game/
     player/weapons/ the other weapons, mechanics, legendaries and abilities (the loadout)
     mobs/          mob AI, passives, pickups and speech bubbles
     bosses/        node bosses, the final boss, telegraphs and safe zones
-    scenes/        Boot, Stretch, Boss, Waystation, FinalBoss, Hud, LevelUp, Store, Death and Victory,
+    scenes/        Boot, Stretch, Boss, Waystation, FinalBoss, Hud, LevelUp, Store, Swate, Death and Victory,
                    the run flow (RunDirector, RunContext), the waystation encounters and the level
                    generator
     dev/           Storybook sandboxes
@@ -207,20 +207,33 @@ next step (`portalLabel`). There is no enemy, no XP and no pit. The HUD, the pau
 level history work as everywhere, and the path on the HUD marks the beaten node.
 
 What stands in the room comes from `rollEncounters(runSeed, afterSegmentIndex)` in
-`model/run/encounters.ts`: always the FAIR trader (or his closed stall once he is beaten, see [Striking the FAIR trader](#striking-the-fair-trader)), and in 40% of the waystations the Datenkrake
-(see [The Datenkrake](#the-datenkrake)). The kinds fill the slots in the order of `ENCOUNTER_SLOTS`
-(centre, right, left), spread over the floor between the entrance and the exit, so a second
+`model/run/encounters.ts`: always the FAIR trader (or his closed stall once he is beaten, see [Striking the FAIR trader](#striking-the-fair-trader)), and at most one chance encounter
+on top: the Datenkrake (see [The Datenkrake](#the-datenkrake)) or SWATE (deprecated) (see
+[SWATE (deprecated)](#swate-deprecated)). Each kind has its own chance per waystation
+(`CHANCE_ENCOUNTERS`), and the roll is one number cut into slices, so two never meet. Once a kind
+has appeared in the run, its chance is multiplied by `REPEAT_FACTOR` (0.2), kind by kind:
+
+| Encounter | First appearance | After it appeared once |
+|---|---|---|
+| Datenkrake | 40% | 8% |
+| SWATE (deprecated) | 25% | 5% |
+| neither | 35% | 87% (both seen) |
+
+The roll depends on the run seed alone: `rollEncounters` replays the waystations from the first up
+to the one asked for, so a retry with the same seed meets the same encounters. The kinds fill the slots in the order of `ENCOUNTER_SLOTS`
+(centre, right, left), spread over the floor between the entrance and the exit, so a chance
 encounter stands between the trader and the exit. In the scene, `ENCOUNTER_SPAWNERS` in `phaser/scenes/encounters.ts` maps each kind to
 a spawner that puts it at the x of its slot and returns an `Encounter`: an interaction zone, the
 prompt word, and hooks for the arrival, the approach, the interaction and the closed overlay. The
 scene shows the prompt with the key of `up` and calls `interact` when it is pressed in the zone, or
 at once when the player walks into the zone of an `auto` encounter. A new chance encounter is a new
-`EncounterKind`, an entry with its chance in `CHANCE_ENCOUNTERS` and a spawner.
+`EncounterKind`, an entry with its chance in `CHANCE_ENCOUNTERS` and a spawner. The chances must
+add up to less than 1.
 
 ## The Datenkrake
 
 The Datenkrake (the old German meme, a data octopus) is a chance encounter of the waystation, rolled
-from the run seed with a 40% chance per waystation (`CHANCE_ENCOUNTERS`). It sits in front of a
+from the run seed with a 40% chance per waystation until it has appeared once, then 8% (`CHANCE_ENCOUNTERS`, `REPEAT_FACTOR`). It sits in front of a
 server rack between the trader and the exit, its tentacles sway and it calls out to the mage
 (`spawnDatenkrake` in `phaser/scenes/encounters.ts`, art in `phaser/art/datenkrake.ts`). When the
 mage walks into its reach, a tentacle grabs the mage and lifts it a little while the world is held,
@@ -288,11 +301,56 @@ with bridges and lifts only.
 
 | What | Where |
 |---|---|
-| Datenkrake chance | `model/run/encounters.ts` (`CHANCE_ENCOUNTERS`) |
+| Datenkrake and SWATE chances, repeat factor | `model/run/encounters.ts` (`CHANCE_ENCOUNTERS`, `REPEAT_FACTOR`) |
 | Grab reach and animation timing | `phaser/scenes/encounters.ts` |
 | Corrupted augment numbers | `model/progression/corrupted.ts` (`CORRUPTION`) |
 | Kraken lines | `model/progression/datenkrake.ts` (`DATENKRAKE_LINES`) |
 | Intern build distance and times | `phaser/scenes/intern.ts` |
+
+## SWATE (deprecated)
+
+SWATE is the annotation table editor of DataPLANT. It has been renamed (to ARCitISA), and in the
+game it stands in the waystation as "SWATE (deprecated)": a spreadsheet on legs with a bold header
+row, two F2 key chips for eyes, a term dropdown for a mouth, a pink close button on top and a name
+tag with a red DEPRECATED stamp (`phaser/art/swate.ts`, drawn once at 4 canvas pixels per unit, every
+position a constant at the top of the file). It is a chance encounter (see
+[The waystation](#the-waystation) for its chance). It says things like "I was just renamed. Please
+update your bookmarks: ARCitISA." (`SWATE_LINES`, no line names a day). Near it the prompt reads
+"[W] Refine annotations" and the key opens `SwateScene`, which holds the world:
+
+1. Pick an augment to give up. The list shows the stat cards (a row per card, "x2" for stacks),
+   mechanics, ability cards and legendary augments the mage owns. Weapons and legendary weapons are
+   not listed. The corrupted augments of the Datenkrake show greyed ("Even SWATE cannot parse
+   this") and cannot be picked.
+2. Pick a replacement: every other augment of the same rarity that the build can take once the old
+   one is gone (`replacementsFor`). That leaves out held mechanics and legendaries (they do not
+   stack), ability cards without a free slot, cards a corrupted augment or a stat limit makes
+   useless and every weapon. Stat cards that stack stay in.
+3. Confirm "Swap X -> Y for N fragments?" with Enter or the button. Escape steps back one step and
+   leaves from the first.
+
+The waystation after node boss `index` allows `index + 1` swaps, one per boss slain
+(`SWAPS_PER_BOSS`; `RunDirector.swapsLeft`). Waystations only follow a boss, so there is always at
+least one; a count of 0 would only show "No swaps left". Unused swaps stay while the mage is in this
+waystation, whether the screen closes or not, and are gone with it. A swap costs twice the FAIR
+price of the rarity (`swapCost`, `SWAP_COST_FACTOR`): 10, 20, 40 and 90 fragments. Rows the
+fragments do not cover show their cost in red and say so, rows without a replacement say "Nothing
+else of rarity ... fits".
+
+The swap (`refineCard` in `model/progression/swate.ts`) removes the old card like the Datenkrake
+does (`removeAugment`, plus `removeCard` for legendary augments, which also free their slot) and
+applies the new one like a purchase: no level, no XP, no heal beyond what the card gives. An ability card
+takes the slot of the ability it replaces, otherwise the first free one. Removing a stat stack
+divides, so it is approximate at the stat limits, as for the Datenkrake. The swap goes into the level
+history and the run recap as "Refined: Old -> New" with its price, and the stat stack counts follow
+(`statStacks`).
+
+| What | Where |
+|---|---|
+| Swaps per boss, cost factor | `model/progression/swate.ts` (`SWAPS_PER_BOSS`, `SWAP_COST_FACTOR`) |
+| SWATE lines | `model/progression/swate.ts` (`SWATE_LINES`) |
+| Art and its size | `phaser/art/swate.ts` |
+| Screen | `phaser/scenes/SwateScene.ts` |
 
 ## Phantoms
 

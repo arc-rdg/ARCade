@@ -13,6 +13,9 @@ export interface SpriteDef {
   // World units.
   width: number
   height: number
+  // Canvas pixels per world unit. Defaults to TEXTURE_SCALE; a sprite with lettering that must stay
+  // sharp when the camera zooms in may ask for more.
+  scale?: number
   // Jittered copies, or the frames of a one-shot animation. 1 gives a still sprite.
   variants?: number
   anchors: SpriteRef['anchors']
@@ -50,11 +53,11 @@ export function animKeyOf(textureKey: string): string {
 }
 
 function drawCanvas(def: SpriteDef, count: number): HTMLCanvasElement {
-  const rects = frameRects(count, def.width, def.height)
+  const rects = frameRects(count, def.width, def.height, def.scale)
   const canvas = document.createElement('canvas')
   canvas.width = rects.length * rects[0].w
   canvas.height = rects[0].h
-  const pen = new Pen(canvas, TEXTURE_SCALE)
+  const pen = new Pen(canvas, def.scale ?? TEXTURE_SCALE)
   const base = hashString(def.key)
   rects.forEach((rect, i) => {
     pen.begin(rect, base, i, def.tileable ? def.width : 0)
@@ -73,7 +76,7 @@ export function spriteFrom(scene: Phaser.Scene, def: SpriteDef): SpriteRef {
     const texture = scene.textures.create(def.key, canvas)
     if (!texture) throw new Error(`Texture ${def.key} already exists`)
     texture.add('__BASE', 0, 0, 0, canvas.width, canvas.height)
-    const rects = frameRects(count, def.width, def.height)
+    const rects = frameRects(count, def.width, def.height, def.scale)
     rects.forEach((rect, i) => texture.add(frameName(i), 0, rect.x, rect.y, rect.w, rect.h))
     const animKey = animKeyOf(def.key)
     if (!scene.anims.exists(animKey)) {

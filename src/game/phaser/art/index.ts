@@ -39,6 +39,7 @@ export {
   datenkrakeArt,
   krakenInternArt,
 } from './datenkrake'
+export { SWATE_HEIGHT, SWATE_WIDTH, swateArt } from './swate'
 export type { BossArt, PartRef } from './parts'
 
 // Puts a sprite on the texture of `ref`, standing on its origin (bottom centre), sized in world

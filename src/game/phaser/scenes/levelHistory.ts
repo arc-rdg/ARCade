@@ -27,6 +27,9 @@ export interface LevelUpRecord {
   datenkrake?: DatenkrakeEvent
   // Set for a card looted from the stall of the beaten FAIR trader. Such an entry gained no level.
   looted?: boolean
+  // Set for a swap at SWATE (deprecated): the card is the new one, `refined` names the one given up,
+  // and `price` is what the swap cost. Such an entry gained no level either.
+  refined?: { fromId: string; fromName: string }
 }
 
 export type DatenkrakeEvent = 'taken' | 'corrupted' | 'fought'
@@ -61,6 +64,13 @@ export function datenkrakeSourceText(plan: RunPlan, index: number, bossLabel: st
   return `at the Datenkrake in the waystation after boss ${bossLabel}${step}`
 }
 
+// Where a swap was made: SWATE (deprecated) stands in the same waystation as the trader.
+export function swateSourceText(plan: RunPlan, index: number, bossLabel: string): string {
+  const segment = plan.segments[index]
+  const step = segment ? ` (${segment.processName})` : ''
+  return `refined at SWATE (deprecated) in the waystation after boss ${bossLabel}${step}`
+}
+
 // Where the loot came from: the stall of the trader the mage beat.
 export function lootSourceText(plan: RunPlan, index: number, bossLabel: string): string {
   const segment = plan.segments[index]
@@ -73,6 +83,8 @@ export function lootSourceText(plan: RunPlan, index: number, bossLabel: string):
 export function statStacks(records: readonly LevelUpRecord[]): Record<string, number> {
   const stacks: Record<string, number> = {}
   for (const record of records) {
+    const given = record.refined?.fromId
+    if (given?.startsWith('stat.')) stacks[given] = Math.max(0, (stacks[given] ?? 0) - 1)
     const id = record.cardId
     if (!id?.startsWith('stat.') || record.datenkrake === 'fought') continue
     stacks[id] = Math.max(0, (stacks[id] ?? 0) + (record.datenkrake === 'taken' ? -1 : 1))
@@ -96,6 +108,9 @@ export interface HistoryRow {
 
 export function historyRow(record: LevelUpRecord): HistoryRow {
   if (record.datenkrake) return { title: datenkrakeTitle(record), source: record.source, also: null }
+  if (record.refined) {
+    return { title: `Refined: ${record.refined.fromName} → ${record.cardName ?? record.cardId} · ${record.price ?? 0} fragments`, source: record.source, also: null }
+  }
   if (record.looted) {
     const rarity = record.rarity ? ` (${record.rarity})` : ''
     return { title: `Looted from the FAIR trader: ${record.cardName ?? record.cardId}${rarity}`, source: record.source, also: null }
@@ -134,6 +149,8 @@ export interface RecapEntry {
   datenkrake?: DatenkrakeEvent
   // Set for a card looted from the stall of the beaten FAIR trader. Such an entry gained no level.
   looted?: boolean
+  // Set for a swap at SWATE (deprecated): `name` reads "Old → New".
+  refined?: boolean
 }
 
 // Every augment of the run in the order it was taken, level-ups and purchases alike. The weapons
@@ -142,6 +159,9 @@ export function runRecap(records: readonly LevelUpRecord[]): RecapEntry[] {
   const weapons: PlayerBuild['weapons'] = { ...createBuild().weapons }
   return records.map((record) => {
     if (record.datenkrake) return datenkrakeEntry(record)
+    if (record.refined) {
+      return { tag: 'Refined', name: `${record.refined.fromName} → ${record.cardName ?? record.cardId}`, note: `${record.price ?? 0} fragments`, rarity: record.rarity, cardId: record.cardId, skipped: false, refined: true }
+    }
     const tag = record.looted ? 'Looted' : record.price !== undefined ? 'Bought' : `Lv ${record.level}`
     const price = record.looted ? 'from the FAIR trader' : record.price !== undefined ? `${record.price} fragments` : ''
     if (!record.cardId) return { tag, name: 'no card taken', note: '', rarity: null, cardId: null, skipped: true }

@@ -3,7 +3,7 @@ import { DEPTH, PALETTE, SCENE, TILE } from '../../contracts/constants'
 import { ENCOUNTER_SLOTS, rollEncounters } from '../../model/run'
 import { relationLabel, weaponRelation } from '../../model/progression'
 import type { Combatant } from '../../contracts/combat'
-import { applySpriteRef, datenkrakeArmArt, datenkrakeArt, doorArt, stallArt, traderArt, traderFighterArt } from '../art'
+import { applySpriteRef, datenkrakeArmArt, datenkrakeArt, doorArt, stallArt, swateArt, traderArt, traderFighterArt } from '../art'
 import type { Arena } from '../bosses'
 import type { View } from '../view'
 import { buildArena } from './arena'
@@ -28,7 +28,7 @@ const SLOT_AT = { left: 0.18, centre: 0.5, right: 0.82 } as const
 const MID_FIGHT = "Can't leave mid-fight"
 
 // The waystation after a node boss: one quiet room of the boss's theme. The mage comes in on the
-// left, meets the encounters of `rollEncounters` (the FAIR trader, sometimes the Datenkrake) and leaves through the
+// left, meets the encounters of `rollEncounters` (the FAIR trader, sometimes the Datenkrake and SWATE) and leaves through the
 // portal on the right, which leads to the next step or to the ARC itself.
 export class WaystationScene extends GameplayScene {
   private index = 0
@@ -96,6 +96,7 @@ export class WaystationScene extends GameplayScene {
       datenkrakeArt(this)
       datenkrakeArmArt(this)
     }
+    if (kinds.includes('swate')) swateArt(this)
     const host: EncounterHost = {
       scene: this,
       director,
@@ -104,6 +105,7 @@ export class WaystationScene extends GameplayScene {
       player: this.player,
       openStore: () => this.openStore(index),
       hold: (on) => this.holdForEncounter(on),
+      openSwate: () => this.openSwate(index),
       openDatenkrake: () => this.openDatenkrake(index),
       combat: this.combat,
       startTraderFight: (x, counterY) => this.startFight(x, counterY),
@@ -186,11 +188,19 @@ export class WaystationScene extends GameplayScene {
       }
     }
     const box = this.player.hurtbox()
+    // Where reaches overlap, the encounter whose middle is closest to the mage wins.
     let near = -1
+    let nearGap = Infinity
     for (let i = 0; i < this.encounters.length; i++) {
       const encounter = this.encounters[i]
       encounter.update(dtMs)
-      if (near < 0 && !encounter.zone.isEmpty() && Phaser.Geom.Intersects.RectangleToRectangle(box, encounter.zone)) near = i
+      // While the trader fights, nothing at the waystation can be used.
+      if (fight || encounter.zone.isEmpty() || !Phaser.Geom.Intersects.RectangleToRectangle(box, encounter.zone)) continue
+      const gap = Math.abs(box.centerX - encounter.zone.centerX)
+      if (gap < nearGap) {
+        near = i
+        nearGap = gap
+      }
     }
     const encounter = this.encounters[near]
     if (near !== this.nearIndex) {
@@ -224,6 +234,11 @@ export class WaystationScene extends GameplayScene {
   }
 
   protected onStoreClosed() {
+    this.engaged?.closed()
+    this.engaged = null
+  }
+
+  protected onSwateClosed() {
     this.engaged?.closed()
     this.engaged = null
   }

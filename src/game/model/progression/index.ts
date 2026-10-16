@@ -47,3 +47,5 @@ export {
   traderBuild,
 } from './traderFight'
 export type { StrikeState, TraderFightMood } from './traderFight'
+export { SWAPS_PER_BOSS, SWAP_COST_FACTOR, SWATE_LINES, refineCard, removeCard, replacementsFor, swapCost, swapsAllowed, swateOptions } from './swate'
+export type { Refined, SwapState, SwateMood, SwateOption } from './swate'

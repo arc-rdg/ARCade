@@ -82,7 +82,7 @@ export class RunRecapPanel {
     this.scene = scene
     this.entries = runRecap(records)
     const bought = this.entries.filter((entry) => entry.tag === 'Bought').length
-    const taken = this.entries.filter((entry) => !entry.skipped && !entry.datenkrake).length
+    const taken = this.entries.filter((entry) => !entry.skipped && !entry.datenkrake && !entry.refined).length
     this.summaryLine = taken === 0 ? '' : `${plural(taken, 'augment')}${bought > 0 ? `, ${bought} bought at the FAIR trade store` : ''}. Hover one for its card.`
     this.blocker = scene.add.rectangle(0, 0, 1, 1, PALETTE.navy, 0.6).setOrigin(0, 0).setVisible(false)
     onClick(scene, this.blocker, () => this.setOpen(false))

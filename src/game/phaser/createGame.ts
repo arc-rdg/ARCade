@@ -6,6 +6,7 @@ import { createGameHandle, createLoopPause } from './gameHandle'
 import { BootScene } from './scenes/BootScene'
 import { BossScene } from './scenes/BossScene'
 import { DatenkrakeScene } from './scenes/DatenkrakeScene'
+import { SwateScene } from './scenes/SwateScene'
 import { RunContext } from './scenes/context'
 import { DeathScene } from './scenes/DeathScene'
 import { FinalBossScene } from './scenes/FinalBossScene'
@@ -66,6 +67,7 @@ export const createGame: CreateGame = (parent, { bindings }) => {
     new HudScene(ctx),
     new LevelUpScene(ctx),
     new StoreScene(ctx),
+    new SwateScene(ctx),
     new DatenkrakeScene(ctx),
     new TraderLootScene(ctx),
     new DeathScene(ctx),

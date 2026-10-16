@@ -39,6 +39,9 @@ const SPENT_HINT: Record<string, string> = { secondWind: 'after boss' }
 
 // Runs over the gameplay scenes for the whole run. Every element redraws only when the value it
 // shows has changed.
+// The screens that open over the world with a title at the top.
+const OVERLAYS = [SCENE.levelUp, SCENE.store, SCENE.swate, SCENE.datenkrake, SCENE.traderLoot]
+
 export class HudScene extends Phaser.Scene implements HudControl {
   private readonly ctx: RunContext
   private view!: View
@@ -278,6 +281,11 @@ export class HudScene extends Phaser.Scene implements HudControl {
 
   update(_time: number, delta: number) {
     this.cookies.update()
+    // The path dots sit where the overlay screens put their titles, so they step aside while one is
+    // open. The bars and the ability slots stay, dimmed.
+    let covered = false
+    for (const key of OVERLAYS) covered ||= this.scene.isActive(key)
+    if (covered === this.pathGraphics.visible) this.pathGraphics.setVisible(!covered)
     // The gameplay scene holds its banner time during the pause, so the banner waits with it.
     if (this.bannerMs > 0 && !this.pauseDim.visible) {
       this.bannerMs -= delta
