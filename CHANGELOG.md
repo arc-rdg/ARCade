@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.2 - 2026-10-16
+
+### 🐛 Fixed
+
+- Attacks turn the mage toward the cursor even when another script on the page cancels mouse events, as reported in Firefox. In 0.1.1 the cursor came from Phaser, which skips cancelled events (a mouse gesture add-on cancels them, for example), so the aim stayed at an old spot and the mage swung the way it walked. #1 (by @caroott)
+- Right-click no longer opens the browser menu anywhere on the arcade, as reported in Opera. Only the game canvas blocked it before, and on Windows the menu opens where the button is released. Middle clicks are blocked too. (by @caroott)
+
 ## 0.1.1 - 2026-10-16
 
 ### 🔄 Changed
