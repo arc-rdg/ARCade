@@ -280,7 +280,7 @@ export const CARDS: readonly PowerUpCard[] = [
     id: 'mechanic.autoclave',
     name: 'Firewall',
     description:
-      'Takes an ability slot. A firewall burst blocks every hit on you for 0.4 s and knocks enemies within 3 tiles away for 8 damage. Bosses, turrets and boss minions are not moved, and the burst does not fill a boss stagger bar. Cooldown 16 s.',
+      'Takes an ability slot. A firewall burst shields you from every hit for 0.9 s and knocks enemies within 3 tiles away for 20 damage. Bosses, turrets and boss minions are not moved, and the burst does not fill a boss stagger bar. Cooldown 14 s.',
     rarity: 'rare',
     kind: 'mechanic',
   },

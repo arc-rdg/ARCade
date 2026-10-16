@@ -9,7 +9,7 @@ import type { Point } from './helpers'
 import type { AbilityFeature } from './mechanics'
 
 // The ability cards that do their work when pressed: Centrifuge Spin, Fume Hood, Sample Freeze,
-// Citation Needed, Autoclave, Second Wind, Peer Pressure and Lab Coat. Hits that pull or push go
+// Citation Needed, Firewall, Second Wind, Peer Pressure and Lab Coat. Hits that pull or push go
 // through the loadout's stand-in attacker as knockback, so bosses, turrets and boss minions, which
 // ignore knockback, are never moved. Freezes and slows go through Combatant.applyStatus, which
 // turns a freeze into a slow on a boss.
@@ -354,22 +354,79 @@ export function createCitationNeeded(core: Core): AbilityFeature {
   }
 }
 
+// Against the other rare ability, Data Freeze (14 s, no damage), the shield is a panic button, so
+// it gets the same cooldown. 20 damage is half of Peer Pressure's 40, which hits the whole screen
+// every 40 s, and the reach stays at 3 tiles. 0.9 s is long enough to read as a wall, and twice
+// the Preprint dash's 0.45 s of immunity would be too much, so it stays under 1 s.
 const AUTOCLAVE_RADIUS = 3 * TILE
-const AUTOCLAVE_DAMAGE = 8
-const AUTOCLAVE_BLOCK_MS = 400
-const AUTOCLAVE_COOLDOWN_MS = 16000
+const AUTOCLAVE_DAMAGE = 20
+const AUTOCLAVE_BLOCK_MS = 900
+const AUTOCLAVE_COOLDOWN_MS = 14000
+// How long the ring takes to grow from the mage to the knockback radius.
+const AUTOCLAVE_RING_MS = 280
+const FIRE = 0xff7a2e
+const AURA_RX = 24
+const AURA_RY = 32
+const AURA_FLAMES = 9
 
-// A burst of steam. Hits miss the mage for 0.4 s, and every enemy within 3 tiles takes a heavy
-// knock away from the mage. The burst adds nothing to a boss stagger bar.
+// A burst of fire. Hits miss the mage for 0.9 s while a firewall flickers around them, and every
+// enemy within 3 tiles takes a heavy knock away from the mage that interrupts a mob. The burst
+// adds nothing to a boss stagger bar.
 export function createAutoclave(core: Core): AbilityFeature {
-  const { player } = core.deps
+  const { scene, player } = core.deps
   const middle = { x: 0, y: 0 }
+  let aura: Phaser.GameObjects.Graphics | null = null
+  let ring: Phaser.GameObjects.Graphics | null = null
+  let leftMs = 0
+  let ringMs = 0
+
+  // Both are drawn once at the origin and then moved, scaled and faded. Two offset outlines read
+  // as hand drawn.
+  const build = () => {
+    if (aura && ring) return
+    const a = scene.add.graphics().setDepth(DEPTH.player + 1).setVisible(false)
+    a.fillStyle(FIRE, 0.3).fillEllipse(0, 0, AURA_RX * 2, AURA_RY * 2)
+    a.lineStyle(2.5, FIRE, 1).strokeEllipse(0, 0, AURA_RX * 2, AURA_RY * 2)
+    a.lineStyle(1, PALETTE.yellow, 0.6).strokeEllipse(1.5, -1, AURA_RX * 2 - 3, AURA_RY * 2 + 2)
+    // Flame tongues around the rim, each a small triangle that points outwards.
+    for (let i = 0; i < AURA_FLAMES; i++) {
+      const t = (i / AURA_FLAMES) * Math.PI * 2 + 0.3
+      const c = Math.cos(t)
+      const s = Math.sin(t)
+      const bx = c * AURA_RX
+      const by = s * AURA_RY
+      const len = 7 + (i % 3) * 3
+      a.fillStyle(i % 2 ? PALETTE.yellow : FIRE, 0.75)
+      a.fillTriangle(bx - s * 3.5, by + c * 3.5, bx + s * 3.5, by - c * 3.5, bx + c * len, by + s * len * 1.1)
+    }
+    const r = scene.add.graphics().setDepth(DEPTH.fx - 1).setVisible(false)
+    r.lineStyle(2.5, FIRE, 0.85).strokeCircle(0, 0, AUTOCLAVE_RADIUS)
+    r.lineStyle(1, PALETTE.yellow, 0.6).strokeCircle(1.5, -1, AUTOCLAVE_RADIUS - 3)
+    aura = a
+    ring = r
+    core.own(() => {
+      a.destroy()
+      r.destroy()
+    })
+  }
+
+  const stop = () => {
+    leftMs = 0
+    ringMs = 0
+    aura?.setVisible(false)
+    ring?.setVisible(false)
+  }
 
   return {
     handler: {
       cooldownMs: AUTOCLAVE_COOLDOWN_MS,
       activate() {
         player.blockHits(AUTOCLAVE_BLOCK_MS)
+        build()
+        leftMs = AUTOCLAVE_BLOCK_MS
+        ringMs = AUTOCLAVE_RING_MS
+        aura?.setVisible(true)
+        ring?.setVisible(true)
         const feet = player.position()
         const cx = feet.x
         const cy = feet.y - MIDDLE
@@ -388,6 +445,8 @@ export function createAutoclave(core: Core): AbilityFeature {
             face: dx >= 0 ? 1 : -1,
             damage,
             knockback: { x: 320, y: -200 },
+            // 'heavy' staggers a mob. The stagger field only scales a boss bar, and a boss
+            // keeps its own rules.
             tags: ['extra', 'heavy', 'autoclave'],
             stagger: 0,
           })
@@ -396,8 +455,28 @@ export function createAutoclave(core: Core): AbilityFeature {
         for (let i = 0; i < 4; i++) core.fx.burst(cx + (i - 1.5) * 18, feet.y - 6 - (i % 2) * 10, 'dust', 1.2)
       },
     },
-    sync() {},
-    update() {},
+    sync() {
+      if (!core.flags.autoclave) stop()
+    },
+    update(dtMs) {
+      if (leftMs <= 0) return
+      leftMs -= dtMs
+      ringMs = Math.max(0, ringMs - dtMs)
+      if (leftMs <= 0 || player.isDead()) stop()
+    },
+    render() {
+      if (leftMs <= 0 || !aura || !ring) return
+      const mage = player.gameObject
+      // The aura flickers a little and fades over the last quarter of the block.
+      const flicker = 1 + Math.sin(leftMs * 0.04) * 0.05
+      aura.setPosition(mage.x, mage.y - MIDDLE).setScale(flicker, 2 - flicker).setAlpha(Math.min(1, (leftMs / AUTOCLAVE_BLOCK_MS) * 4))
+      if (ringMs <= 0) {
+        ring.setVisible(false)
+        return
+      }
+      const grown = 1 - ringMs / AUTOCLAVE_RING_MS
+      ring.setPosition(mage.x, mage.y - MIDDLE).setScale(0.2 + 0.8 * grown).setAlpha(1 - grown * 0.8)
+    },
   }
 }
 
