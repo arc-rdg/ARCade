@@ -986,7 +986,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       shape: { kind: 'rect', x: -halfW, y: -H, w: W, h: H },
       follow: true,
       activeMs: CONTACT_ACTIVE_MS,
-      damage: contactDamageFor(stats.contactDamage, weapon.damage, lockedByBody()),
+      damage: contactDamageFor(stats.contactDamage, weapon.damage, !armed || lockedByBody()),
       knockback: { x: CONTACT_KNOCKBACK.x * side, y: CONTACT_KNOCKBACK.y },
       hitStopMs: 40,
       maxTargets: 1,
