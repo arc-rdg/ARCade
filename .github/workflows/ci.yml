@@ -26,6 +26,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node scripts/release.mjs check
       - run: npx tsc -b
       - run: npx oxlint
       - run: npx vitest run --maxWorkers=4

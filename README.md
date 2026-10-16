@@ -122,10 +122,12 @@ To publish: create the `@arc-rdg` organisation on npm, remove `"private": true` 
 
 ### Releasing
 
-Bump `version` in `package.json` and commit. Then `git tag v<version>` and
-`git push origin main --tags`. The Release workflow checks that the tag matches the version, runs
-the full CI test suite, and only if that passes builds, packs and creates the GitHub Release with the
-tarball attached.
+Releases are driven by `CHANGELOG.md`. To release, add a `## <version> - <YYYY-MM-DD>` section
+below `## [Unreleased]` (same format as the existing entries) and set the same `version` in
+`package.json`; CI fails if the two disagree. Merge or push to `main`. After CI has passed, the
+Release workflow checks whether the tag `v<version>` exists; if not, it builds and packs the package,
+creates the tag and publishes a GitHub Release with that changelog section as notes and the tarball
+attached. Versions with a `-` (for example `0.2.0-beta.1`) are marked as pre-releases.
 
 ### CI
 
