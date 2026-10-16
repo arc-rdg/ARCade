@@ -47,6 +47,10 @@ The game fills its host element, so the host needs a definite size (for example 
 `bindingsStorageKey` (default `arc-mage.bindings.v1`, `null` keeps bindings for the session),
 `fullscreen` (default true), `onEvent`. `mountArcadeBanner(el)` mounts the compact tile banner.
 
+The start screen shows the package version in a corner. Clicking it opens the changelog inside the arcade, loaded on first use.
+Key bindings are reachable from the start screen (a gear button in compact boxes) and from the pause menu during a run.
+`onEvent` also receives `{ type: 'settingsRequested' }` when the player picks Settings in the pause menu; the arcade handles it, so hosts need no code.
+
 ### React
 
 React 18 or newer is an optional peer.

@@ -21,7 +21,11 @@ function mageAsFile(): Plugin {
   }
 }
 
+// The shell shows this version on its start screen.
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+
 export default defineConfig({
+  define: { __ARCADE_VERSION__: JSON.stringify(version) },
   plugins: [mageAsFile()],
   publicDir: false,
   experimental: { renderBuiltUrl: () => ({ relative: true }) },

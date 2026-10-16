@@ -142,6 +142,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
     this.pauseButtons = [
       addButton(this, 'Resume', 130, 22, () => this.ctx.gameplay?.resumeFromPause(), onButtonHover),
       addButton(this, 'Level-up provenance', 130, 22, () => this.openHistory(), onButtonHover),
+      addButton(this, 'Settings', 130, 22, () => this.ctx.requestSettings(), onButtonHover),
       addButton(this, 'Quit to menu', 130, 22, () => this.ctx.quitToMenu(), onButtonHover),
     ]
     this.paused = false
@@ -193,6 +194,7 @@ export class HudScene extends Phaser.Scene implements HudControl {
     this.pauseButtons[0].setPosition(w / 2, h / 2 - 14)
     this.pauseButtons[1].setPosition(w / 2, h / 2 + 14)
     this.pauseButtons[2].setPosition(w / 2, h / 2 + 42)
+    this.pauseButtons[3].setPosition(w / 2, h / 2 + 70)
     this.mobInfo.layout(view)
     this.history.layout(view)
     this.cookies.layout(view)

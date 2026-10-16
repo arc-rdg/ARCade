@@ -5,11 +5,12 @@ import { ACTIONS, type Action, type Binding, type Bindings } from '../game/contr
 import { BINDINGS_STORAGE_KEY, bindingLabel, DEFAULT_BINDINGS, findConflicts, loadBindings, saveBindings } from '../game/model/input'
 import { planRun } from '../game/model/run'
 import { barList } from './barList'
-import { alertIcon, exitFullscreenIcon, fullscreenIcon, h } from './dom'
+import { alertIcon, exitFullscreenIcon, fullscreenIcon, gearIcon, h } from './dom'
 import { boxFor, observeSize, type Box } from './layout'
 import { scene, sparkle } from './scenery'
 import { acquireStyles } from './styles'
 import { loadTrimmedImage } from './trimmedImage'
+import { ARCADE_VERSION } from './version'
 
 export interface ArcadeOptions {
   title: string
@@ -108,16 +109,28 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   let sendToGame: ((bindings: Bindings) => void) | null = null
   let capture: { action: Action; slot: number } | null = null
   let destroyed = false
+  // The version label and the compact settings button, next to the stage so a rebuilt screen keeps them.
+  let chrome: HTMLElement | null = null
+  // A panel above the current screen: the changelog, or the settings over a paused run.
+  let overlay: { el: HTMLElement; dispose(): void; restoreFocus(): void } | null = null
 
   const pointerQuery = win.matchMedia(FINE_POINTER)
   const canPlay = () => pointerQuery.matches && plan !== null
 
   // Applies the measured box to the start screen or settings.
+  const sizeScreen = (el: HTMLElement) => {
+    el.dataset.layout = box?.layout ?? 'wide'
+    // A compact box blows the start card up to fill it; the panels keep to a readable size.
+    const panel = el.classList.contains('arcade-screen-settings')
+    const scale = panel && box?.layout === 'compact' ? Math.min(box.scale, 1) : (box?.scale ?? 1)
+    el.style.setProperty('--scale', String(scale))
+    return scale
+  }
+
   const applyBox = () => {
+    if (overlay) sizeScreen(overlay.el)
     if (!screenEl) return
-    screenEl.dataset.layout = box?.layout ?? 'wide'
-    let scale = box?.scale ?? 1
-    screenEl.style.setProperty('--scale', String(scale))
+    let scale = sizeScreen(screenEl)
     // The start screen shrinks until its content fits the box, down to a floor. Below that the bar list
     // of a stacked screen scrolls inside its card, and a wide screen scrolls as a page.
     if (mode !== 'menu') return
@@ -134,9 +147,9 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
 
   // Rebuilds the start screen and puts the keyboard focus back on the button that had it.
   const rebuildMenu = () => {
-    const action = (doc.activeElement as HTMLElement | null)?.getAttribute?.('data-action')
+    const action = overlay ? null : (doc.activeElement as HTMLElement | null)?.getAttribute?.('data-action')
     renderMenu()
-    if (action) screenEl?.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus()
+    if (action) root.querySelector<HTMLElement>(`[data-action="${action}"]`)?.focus()
   }
 
   const show = (screen: HTMLElement) => {
@@ -145,7 +158,31 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     applyBox()
   }
 
+  // Shows a panel above the screen. The screen and the corner buttons stay in the page but leave the tab order.
+  const showOverlay = (el: HTMLElement, dispose: () => void, restoreFocus: () => void) => {
+    overlay = { el, dispose, restoreFocus }
+    stage.toggleAttribute('inert', true)
+    chrome?.toggleAttribute('inert', true)
+    root.append(el)
+    sizeScreen(el)
+  }
+
+  const closeOverlay = (restore = true) => {
+    if (!overlay) return
+    const { el, dispose, restoreFocus } = overlay
+    overlay = null
+    dispose()
+    el.remove()
+    stage.toggleAttribute('inert', false)
+    chrome?.toggleAttribute('inert', false)
+    if (restore) restoreFocus()
+  }
+
   const setMode = (next: Mode) => {
+    const from = mode
+    closeOverlay(false)
+    chrome?.remove()
+    chrome = null
     disposeScreen?.()
     disposeScreen = null
     playing = null
@@ -158,6 +195,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     else {
       mode = 'menu'
       renderMenu()
+      if (from === 'settings') root.querySelector<HTMLElement>('[data-action="settings"]')?.focus()
     }
   }
 
@@ -259,9 +297,91 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
         content,
       ),
     )
+
+    const settingsButton =
+      compact && fine
+        ? h(
+            'button',
+            { type: 'button', class: 'arcade-fullscreen arcade-gear', 'data-action': 'settings', 'aria-label': 'Settings', title: 'Settings', onclick: () => setMode('settings') },
+            gearIcon(),
+          )
+        : null
+    const versionButton = ARCADE_VERSION
+      ? h(
+          'button',
+          {
+            type: 'button',
+            class: 'arcade-version',
+            'data-action': 'version',
+            'aria-label': `Version ${ARCADE_VERSION}, show the changelog`,
+            title: 'Changelog',
+            onclick: openChangelog,
+          },
+          `v${ARCADE_VERSION}`,
+        )
+      : null
+    chrome?.remove()
+    chrome = h('div', { class: 'arcade-chrome' }, versionButton, settingsButton)
+    chrome.style.display = 'contents'
+    if (overlay) chrome.toggleAttribute('inert', true)
+    stage.after(chrome)
+  }
+
+  // The changelog text and its renderer load on the first click, as a chunk of their own.
+  function openChangelog() {
+    if (overlay || destroyed) return
+    const body = h('div', { class: 'arcade-log', tabindex: '0', 'aria-label': 'Changelog entries' }, h('p', { class: 'arcade-hint', role: 'status' }, 'Loading the changelog…'))
+    const close = h('button', { type: 'button', class: 'arcade-btn arcade-btn-small', 'data-action': 'close-log', onclick: () => closeOverlay() }, 'Close')
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      closeOverlay()
+    }
+    doc.addEventListener('keydown', onKey)
+    const screen = h(
+      'div',
+      { class: 'arcade-screen arcade-screen-settings arcade-screen-log', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Changelog' },
+      scene(),
+      h(
+        'div',
+        { class: 'arcade-content arcade-card' },
+        h('div', { class: 'arcade-settings-head' }, h('h2', { class: 'arcade-settings-title' }, 'Changelog'), h('div', { class: 'arcade-settings-buttons' }, close)),
+        body,
+      ),
+    )
+    showOverlay(
+      screen,
+      () => doc.removeEventListener('keydown', onKey),
+      () => chrome?.querySelector<HTMLElement>('.arcade-version')?.focus(),
+    )
+    close.focus()
+    import('./changelogView').then(
+      ({ renderBundledChangelog }) => {
+        if (overlay?.el === screen) body.replaceChildren(...renderBundledChangelog())
+      },
+      () => {
+        if (overlay?.el === screen) body.replaceChildren(h('p', { class: 'arcade-hint', role: 'alert' }, 'The changelog could not be loaded.'))
+      },
+    )
   }
 
   function renderSettings(): () => void {
+    const { screen, dispose } = buildSettings(() => setMode('menu'), 'Back')
+    show(screen)
+    return dispose
+  }
+
+  // Over a paused run: the game stays paused underneath. Closing returns the focus to the canvas,
+  // which lifts only the pause the shell put on while the panel had the focus.
+  function openPlayingSettings() {
+    if (overlay || destroyed || mode !== 'playing') return
+    const { screen, dispose } = buildSettings(() => closeOverlay(), 'Close')
+    showOverlay(screen, dispose, () => playing?.focus())
+    screen.querySelector<HTMLElement>('[data-action="close-settings"]')?.focus()
+  }
+
+  function buildSettings(close: () => void, closeLabel: string): { screen: HTMLElement; dispose: () => void } {
     const hint = h('p', { class: 'arcade-hint', role: 'status' })
     const rows = ACTIONS.map((action) => {
       const buttons = BINDING_SLOTS.map((slot) =>
@@ -381,11 +501,20 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       refresh()
     }
 
+    // Escape closes the panel unless it is cancelling a capture: that handler stops the event first.
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || capture) return
+      event.preventDefault()
+      event.stopPropagation()
+      close()
+    }
+    doc.addEventListener('keydown', onEscape)
+
     refresh()
-    show(
+    const screen = (
       h(
         'div',
-        { class: 'arcade-screen arcade-screen-settings' },
+        { class: 'arcade-screen arcade-screen-settings', ...(closeLabel === 'Close' ? { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Controls' } : {}) },
         scene(),
         h(
           'div',
@@ -410,17 +539,22 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
                 },
                 'Reset to defaults',
               ),
-              h('button', { type: 'button', class: 'arcade-btn arcade-btn-small', onclick: () => setMode('menu') }, 'Back'),
+              h('button', { type: 'button', class: 'arcade-btn arcade-btn-small', 'data-action': 'close-settings', onclick: close }, closeLabel),
             ),
           ),
           hint,
           h('ul', { class: 'arcade-bindings', 'aria-label': 'Controls' }, ...rows.map((row) => row.item)),
         ),
-      ),
+      )
     )
-    return () => {
-      stopCapture?.()
-      stopCapture = null
+    return {
+      screen,
+      dispose: () => {
+        doc.removeEventListener('keydown', onEscape)
+        stopCapture?.()
+        stopCapture = null
+        capture = null
+      },
     }
   }
 
@@ -533,6 +667,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
         // The Phaser scenes draw the death and victory screens, so those events need no reaction here.
         stopListening = game.on((event: GameEvent) => {
           options.onEvent?.(event)
+          if (event.type === 'settingsRequested') openPlayingSettings()
           if (event.type !== 'menuRequested') return
           if (event.choice === 'retry') {
             game.send({ type: 'start', plan: runPlan })
@@ -656,6 +791,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     destroy() {
       if (destroyed) return
       destroyed = true
+      closeOverlay(false)
       disposeScreen?.()
       disposeScreen = null
       playing = null

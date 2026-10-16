@@ -15,6 +15,8 @@ export type GameEvent =
   | { type: 'paused'; paused: boolean }
   // The player chose Retry, New path or Menu on the death or victory screen.
   | { type: 'menuRequested'; choice: 'retry' | 'newPath' | 'menu' }
+  // The player chose Settings in the pause menu. The game stays paused; the host shows its key bindings.
+  | { type: 'settingsRequested' }
 
 // From React to the game.
 export type GameCommand =

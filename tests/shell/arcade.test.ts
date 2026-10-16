@@ -11,10 +11,32 @@ import { BINDINGS_STORAGE_KEY, DEFAULT_BINDINGS, findConflicts, loadBindings, sa
 import { planRun } from '../../src/game/model/run'
 import { createGame } from '../../src/game/phaser/createGame'
 import { mountArcade, type ArcadeHandle, type ArcadeOptions } from '../../src/index'
+import { renderChangelog } from '../../src/shell/markdown'
 import { crateJson } from '../helpers/sampleCrate'
 
 vi.mock('../../src/game/phaser/createGame', () => ({ createGame: vi.fn() }))
 vi.mock('../../src/game/model/run', () => ({ planRun: vi.fn() }))
+vi.mock('../../src/shell/changelogView', () => ({
+  renderBundledChangelog: () =>
+    renderChangelog(
+      [
+        '# Changelog',
+        'Header text that stays out.',
+        '**Types of changes**',
+        '- ✨ `Added` for new features.',
+        '## [Unreleased]',
+        '## 0.2.0 - 2026-01-01',
+        '### ✨ Added',
+        '- Adds `code`, **bold** and [the site](https://example.com/a).',
+        '- <img src=x onerror=alert(1)>',
+        '- [script](javascript:alert(1)) stays text.',
+        '### 🐛 Fixed',
+        '- Fixes a thing.',
+      ].join('\n'),
+    ),
+}))
+
+declare const __ARCADE_VERSION__: string
 vi.mock('../../src/game/model/input', async (importOriginal) => ({
   ...(await importOriginal<typeof InputModule>()),
   loadBindings: vi.fn(),
@@ -394,7 +416,120 @@ it('shows a compact title card in a small box', async () => {
   expect(await screen.findByText('2 steps · 4 monsters · quest: Talinum')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Start run' })).toBeTruthy()
   expect(screen.queryByRole('region', { name: 'Annotations per step' })).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'New path' })).toBeNull()
+})
+
+it('puts a Settings gear in the compact card that opens the settings panel', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(280)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(200)
+  mount()
+
+  const gear = await screen.findByRole('button', { name: 'Settings' })
+  expect(gear.querySelector('svg')).toBeTruthy()
+  click(gear)
+
+  expect(screen.getByRole('heading', { name: 'Controls' })).toBeTruthy()
+  click(screen.getByRole('button', { name: 'Back' }))
+  expect(await screen.findByRole('button', { name: 'Start run' })).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Settings' }))
+})
+
+it('shows the package version on the start screen', async () => {
+  mount()
+
+  const label = await screen.findByRole('button', { name: /^Version / })
+  expect(__ARCADE_VERSION__).toMatch(/^\d+\.\d+\.\d+/)
+  expect(label.textContent).toBe(`v${__ARCADE_VERSION__}`)
+})
+
+it('opens the changelog from the version label, shows it as text and returns the focus on Escape', async () => {
+  mount()
+  const label = await screen.findByRole('button', { name: /^Version / })
+  expect(document.querySelector('.arcade-screen-log')).toBeNull()
+
+  click(label)
+
+  const dialog = screen.getByRole('dialog', { name: 'Changelog' })
+  expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Close' }))
+  expect(await within(dialog).findByRole('heading', { name: '0.2.0 - 2026-01-01' })).toBeTruthy()
+  expect(within(dialog).getByRole('heading', { name: '✨ Added' })).toBeTruthy()
+  expect(within(dialog).getByRole('heading', { name: '🐛 Fixed' })).toBeTruthy()
+  expect(within(dialog).queryByText('[Unreleased]')).toBeNull()
+  expect(within(dialog).queryByText(/Header text|Types of changes/)).toBeNull()
+  expect(within(dialog).getAllByRole('listitem')).toHaveLength(4)
+  expect(dialog.querySelector('code')?.textContent).toBe('code')
+  expect(dialog.querySelector('strong')?.textContent).toBe('bold')
+  const links = dialog.querySelectorAll('a')
+  expect(links).toHaveLength(1)
+  expect(links[0].getAttribute('href')).toBe('https://example.com/a')
+  expect(links[0].getAttribute('rel')).toContain('noopener')
+  expect(links[0].getAttribute('target')).toBe('_blank')
+  // Raw HTML in a bullet is text, and a script link keeps only its label.
+  expect(dialog.querySelector('img')).toBeNull()
+  expect(within(dialog).getByText('<img src=x onerror=alert(1)>')).toBeTruthy()
+  expect(within(dialog).getByText('script stays text.', { exact: false })).toBeTruthy()
+
+  fireEvent.keyDown(document.body, { key: 'Escape' })
+
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement).toBe(label)
+})
+
+it('closes the changelog with its Close button', async () => {
+  mount()
+  const label = await screen.findByRole('button', { name: /^Version / })
+  click(label)
+
+  click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }))
+
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement).toBe(label)
+})
+
+// The pause menu is drawn by Phaser. Its Settings button reports through the game listener.
+function requestSettings() {
+  const listener = vi.mocked(handle.on).mock.calls.at(-1)?.[0]
+  if (!listener) throw new Error('The arcade registered no game listener')
+  listener({ type: 'settingsRequested' })
+}
+
+it('opens the settings over the paused run, saves a rebinding and keeps the game paused on close', async () => {
+  const onEvent = vi.fn()
+  await startRun({ onEvent })
+  expect(lastPause()).toEqual({ type: 'pause', paused: true })
+  const sends = vi.mocked(handle.send).mock.calls.length
+
+  requestSettings()
+
+  expect(onEvent).toHaveBeenCalledWith({ type: 'settingsRequested' })
+  const dialog = screen.getByRole('dialog', { name: 'Controls' })
+  expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Close' }))
+  click(within(dialog).getByRole('button', { name: 'Jump binding 1: Space' }))
+  fireEvent.keyDown(document.body, { key: 'x', code: 'KeyX' })
+  expect(saveBindings).toHaveBeenCalled()
+  expect(vi.mocked(handle.send).mock.calls.slice(sends).map(([command]) => command.type)).toEqual(['setBindings'])
+  fireEvent.keyUp(document.body, { code: 'KeyX' })
+  await new Promise((resolve) => setTimeout(resolve))
+
+  vi.mocked(handle.focus).mockClear()
+  fireEvent.keyDown(document.body, { key: 'Escape' })
+
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(handle.focus).toHaveBeenCalled()
+  expect(lastPause()).toEqual({ type: 'pause', paused: true })
+  expect(vi.mocked(handle.send).mock.calls.slice(sends).map(([command]) => command.type)).toEqual(['setBindings'])
+})
+
+it('cancels a rebinding with Escape without closing the settings over the run', async () => {
+  await startRun()
+  requestSettings()
+  const dialog = screen.getByRole('dialog', { name: 'Controls' })
+
+  click(within(dialog).getByRole('button', { name: 'Jump binding 1: Space' }))
+  fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' })
+
+  expect(screen.getByRole('dialog', { name: 'Controls' })).toBeTruthy()
+  expect(saveBindings).not.toHaveBeenCalled()
 })
 
 it('hands the measured box to the game', async () => {

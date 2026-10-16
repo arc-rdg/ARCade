@@ -615,6 +615,13 @@ The target is a steady 60 fps on an integrated GPU.
 - A paused game (canvas blurred or dashlet scrolled out of view) stops the render loop
   (`createLoopPause` in `phaser/gameHandle.ts`).
 
+## Pause menu
+
+Esc opens the pause menu in `HudScene`: Resume, Level-up provenance, Settings and Quit to menu. Settings emits
+`{ type: 'settingsRequested' }` (`RunContext.requestSettings`) and nothing else, so the game stays paused. The shell opens its
+key bindings panel over the canvas and sends changes back with `setBindings`. When the panel closes, the canvas gets the focus
+back and the pause menu is still there; Resume continues the run.
+
 ## Tests
 
 Vitest unit-tests the pure modules under `tests/game/`. The dashlet test is

@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 
@@ -27,7 +28,10 @@ function contentSecurityPolicy(): Plugin {
 
 const path = (relative: string) => fileURLToPath(new URL(relative, import.meta.url))
 
+const { version } = JSON.parse(readFileSync(path('../package.json'), 'utf8')) as { version: string }
+
 export default defineConfig({
+  define: { __ARCADE_VERSION__: JSON.stringify(version) },
   root: path('.'),
   base: '/ARCade/',
   publicDir: path('../public'),

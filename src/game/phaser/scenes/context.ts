@@ -122,6 +122,10 @@ export class RunContext {
     this.emit({ type: 'menuRequested', choice })
   }
 
+  requestSettings(): void {
+    this.emit({ type: 'settingsRequested' })
+  }
+
   setBindings(bindings: Bindings): void {
     this.bindings = bindings
     this.bindingsVersion++

@@ -726,3 +726,138 @@
     align-items: flex-start;
   }
 }
+
+/* The version label sits in a corner of the start screen and opens the changelog. */
+.arcade-root .arcade-version {
+  position: absolute;
+  right: 8px;
+  bottom: 3px;
+  padding: 1px 5px;
+  font: inherit;
+  font-size: max(11px, 1.3cqmin);
+  color: var(--arcade-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  opacity: 0.8;
+}
+
+.arcade-root .arcade-version:hover,
+.arcade-root .arcade-version:focus-visible {
+  text-decoration: underline;
+  opacity: 1;
+}
+
+.arcade-root .arcade-version:focus-visible {
+  outline: 2px solid var(--arcade-navy);
+}
+
+/* The settings button of a compact screen: the fullscreen button's twin, left of it. */
+.arcade-root .arcade-gear {
+  right: 8px;
+}
+
+.arcade-root[data-fullscreen] .arcade-gear {
+  right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
+}
+
+/* The settings and the changelog scroll inside a compact box too, and start at its top. */
+.arcade-root .arcade-screen.arcade-screen-settings {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.arcade-root .arcade-screen.arcade-screen-settings .arcade-content {
+  min-width: 0;
+}
+
+/* The changelog keeps its title and Close button in view: the entries scroll inside the card. */
+.arcade-root .arcade-screen.arcade-screen-log {
+  overflow: hidden;
+}
+
+.arcade-root .arcade-screen-log .arcade-card {
+  align-self: stretch;
+  min-height: 0;
+  flex: 1 1 0;
+  width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.arcade-root .arcade-log {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: calc(10 * var(--u));
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.arcade-root .arcade-log:focus-visible {
+  outline: 3px solid var(--arcade-navy);
+  outline-offset: 2px;
+}
+
+.arcade-root .arcade-log-heading {
+  font-size: 1.15em;
+  font-weight: 800;
+  color: var(--arcade-navy);
+}
+
+.arcade-root .arcade-log-type {
+  margin: calc(6 * var(--u)) 0 calc(2 * var(--u));
+  font-weight: 800;
+}
+
+.arcade-root .arcade-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(4 * var(--u));
+}
+
+.arcade-root .arcade-log-list li {
+  position: relative;
+  padding-left: 1.1em;
+  overflow-wrap: anywhere;
+}
+
+.arcade-root .arcade-log-list li::before {
+  content: '•';
+  position: absolute;
+  left: 0.2em;
+}
+
+.arcade-root .arcade-log a {
+  color: var(--arcade-navy);
+}
+
+.arcade-root .arcade-log code {
+  padding: 0 0.25em;
+  background: rgb(25 25 25 / 0.08);
+  border-radius: 3px;
+}
+
+.arcade-root h4 {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+/* The settings card keeps its own height, so a long list scrolls with the screen and is not cut off. */
+.arcade-root .arcade-screen.arcade-screen-settings .arcade-card {
+  align-self: flex-start;
+  width: 100%;
+}
+
+.arcade-root .arcade-screen.arcade-screen-log .arcade-card {
+  align-self: stretch;
+}
+
+/* The compact title card starts below the corner buttons instead of running under them. */
+.arcade-root[data-fullscreen] .arcade-screen[data-layout='compact']:not(.arcade-screen-settings) {
+  padding-top: calc(12 * var(--u) + 14px);
+}
