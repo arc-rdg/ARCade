@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite --config site/vite.config.ts",
     "typecheck": "tsc -b",
     "lint": "oxlint",
     "test": "vitest run --maxWorkers=6",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "build:site": "vite build --config site/vite.config.ts",
+    "preview:site": "vite preview --config site/vite.config.ts"
   },
   "dependencies": {
     "phaser": "4.2.1",

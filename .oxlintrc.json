@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
-  "ignorePatterns": ["legacy", "dist", "storybook-static"],
+  "ignorePatterns": ["legacy", "dist", "dist-site", "storybook-static"],
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }],
