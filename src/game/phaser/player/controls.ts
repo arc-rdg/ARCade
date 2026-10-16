@@ -1,4 +1,4 @@
-import { EMPTY_MOTOR_INPUT, aimFacing, airHeavyRefused, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
+import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyRefused, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { AttackInfo, AttackMachine, AttackStepEnv } from './attacks'
 
@@ -16,9 +16,9 @@ const NO_HELD: ReadonlySet<string> = new Set()
 
 // The horizontal speed a move's lunge leaves the mage with. The lunge pushes only while left or right
 // is held, so an attack without a direction stays in place: on the ground it stops a walk, in the
-// air it keeps the air speed.
+// air it keeps the air speed. The lunge never slows a mage who already runs faster that way.
 export function lungeVelocity(lunge: number, facing: 1 | -1, leftHeld: boolean, rightHeld: boolean, grounded: boolean, vx: number): number {
-  if (leftHeld !== rightHeld) return facing * lunge
+  if (leftHeld !== rightHeld) return facing * Math.max(lunge, facing * vx)
   return grounded ? 0 : vx
 }
 
@@ -75,6 +75,8 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
   let lungeMs = 0
   let lungeSeen: Readonly<AttackInfo> | null = null
   let wasActive = false
+  // The attack started towards a recently used cursor, so its facing holds until the move ends.
+  let aimed = false
 
   return {
     step(live, livePresses, controllable, attackSpeed, dtMs, attacksBlocked = false, controlInMs = Infinity) {
@@ -138,11 +140,12 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       motorEnv.actionsLocked = attacks.isLocked()
       const phase = attacks.phase()
       motorEnv.speedScale = phase !== 'idle' && !attacks.canCancel() && grounded ? ATTACK_GROUND_SPEED : 1
-      // The move keeps the facing it started with until it ends, also once the cancel window lets
-      // the held direction through.
+      // The move keeps the facing it started with. After an aimed start that lasts until the move
+      // ends, otherwise the held direction turns the mage once the cancel window opens.
       const facing = motor.facing
       stepMotor(motor, motorInput, motorEnv, dtMs, motor)
-      if (phase !== 'idle' && !motor.dashed && !motor.jumped) motor.facing = facing
+      if (phase === 'idle') aimed = false
+      else if ((aimed || !attacks.canCancel()) && !motor.dashed && !motor.jumped) motor.facing = facing
 
       // The lunge starts with the active phase. A single set would be gone after a few steps of
       // ground friction, so it pushes for LUNGE_MS.
@@ -162,6 +165,7 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       else sinceDashMs += dtMs
     },
     faceCursor(cursorDx, pointerRecent) {
+      aimed = pointerRecent && Math.abs(cursorDx) > AIM_DEAD_ZONE
       motor.facing = aimFacing(cursorDx, pointerRecent, motor.facing)
     },
     endDashGrace() {

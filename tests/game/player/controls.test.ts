@@ -15,7 +15,7 @@ import {
 import type { MotorEnv } from '../../../src/game/model/input/motor'
 import { createAttackMachine } from '../../../src/game/phaser/player/attacks'
 import { AIM_DEAD_ZONE, aimFacing } from '../../../src/game/model/input/motor'
-import { createControls, lungeVelocity } from '../../../src/game/phaser/player/controls'
+import { ATTACK_GROUND_SPEED, LUNGE_MS, createControls, lungeVelocity } from '../../../src/game/phaser/player/controls'
 
 function move(name: string, timing: Partial<AttackMove>): AttackMove {
   return { name, startupMs: 60, activeMs: 80, recoveryMs: 140, cancelAfterMs: 60, allowedInAir: true, onActive: () => {}, ...timing }
@@ -436,18 +436,38 @@ describe('player feel', () => {
     expect(motor.facing).toBe(-1)
   })
 
-  it('moves at least 8 px with a held light lunge, and stays put without a direction', () => {
+  it('pushes faster than the half-speed run for the first 60 ms of the active phase, and stays put without a direction', () => {
     const lunging = setup()
     lunging.hold('right')
     lunging.step(['light'])
-    const before = lunging.x()
-    lunging.wait(110 + 85)
-    expect(lunging.x() - before).toBeGreaterThanOrEqual(8)
+    while (lunging.attacks.phase() !== 'active') lunging.step()
+    const speeds: number[] = []
+    for (let ms = 0; ms < LUNGE_MS - STEP_MS; ms += STEP_MS) {
+      lunging.step()
+      speeds.push(lunging.motor.vx)
+    }
+    expect(speeds.length).toBeGreaterThan(3)
+    for (const vx of speeds) expect(vx).toBeCloseTo(140)
+    expect(140).toBeGreaterThan(MOTOR.runSpeed * ATTACK_GROUND_SPEED)
 
     const standing = setup()
     standing.step(['light'])
     standing.wait(300)
     expect(standing.x()).toBe(0)
+  })
+
+  it('turns a keyboard player to the held direction once the cancel window opens, but not before', () => {
+    const { motor, attacks, step, wait, hold } = setup()
+    step(['light'])
+    expect(motor.facing).toBe(1)
+    hold('left')
+    wait(40)
+    expect(attacks.canCancel()).toBe(false)
+    expect(motor.facing).toBe(1)
+    wait(200)
+    expect(attacks.canCancel()).toBe(true)
+    expect(attacks.phase()).toBe('recovery')
+    expect(motor.facing).toBe(-1)
   })
 })
 
@@ -455,6 +475,13 @@ describe('lungeVelocity', () => {
   it('lunges towards the facing while a direction is held', () => {
     expect(lungeVelocity(140, 1, false, true, true, 0)).toBe(140)
     expect(lungeVelocity(140, -1, true, false, false, 50)).toBe(-140)
+  })
+
+  it('never slows a mage who already moves faster in that direction', () => {
+    expect(lungeVelocity(80, 1, false, true, true, 105)).toBe(105)
+    expect(lungeVelocity(140, -1, true, false, false, -200)).toBe(-200)
+    expect(lungeVelocity(80, 1, false, true, true, 40)).toBe(80)
+    expect(lungeVelocity(80, 1, false, true, true, -50)).toBe(80)
   })
 
   it('stops a walking mage on the ground without a direction', () => {
