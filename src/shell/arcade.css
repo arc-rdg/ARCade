@@ -185,8 +185,9 @@
   height: 17cqh;
 }
 
+/* The compact card also caps the mage by the box width, so a narrow tall box leaves room for the text. */
 .arcade-root .arcade-screen[data-layout='compact'] .arcade-mage {
-  height: 50cqh;
+  height: min(50cqh, 45cqw);
 }
 
 .arcade-root.arcade-banner .arcade-mage {
@@ -716,4 +717,12 @@
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* A compact card in a portrait box runs top-down and left-aligned, like the stacked screen. */
+@container (max-aspect-ratio: 1/1) {
+  .arcade-root .arcade-screen[data-layout='compact'] {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

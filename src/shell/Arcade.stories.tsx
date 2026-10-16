@@ -69,6 +69,9 @@ export const Desktop: Story = { args: { width: '1440px', height: '900px' } }
 // A tile too small for the controls gets the compact title card.
 export const CompactTile: Story = { args: { width: '280px', height: '200px' } }
 
+// A narrow, tall box (a phone popup) still shows the logo, the quest and the buttons without scrolling.
+export const NarrowTall: Story = { args: { width: '280px', height: '710px' } }
+
 export const FixedSeed: Story = { args: { seed: 'talinum1' } }
 
 export const AutoStart: Story = { args: { autoStart: true, seed: 'talinum1' } }

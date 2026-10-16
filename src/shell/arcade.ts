@@ -54,6 +54,8 @@ const BINDING_SLOTS = [0, 1]
 const FINE_POINTER = '(any-pointer: fine)'
 // The start screen does not shrink below this scale to fit its content.
 const MIN_FIT_SCALE = 0.55
+// A wide screen has no inner scroll to fall back on, so it may shrink further.
+const MIN_FIT_SCALE_WIDE = 0.35
 
 const newSeed = () => Math.floor(Math.random() * 36 ** 8).toString(36).padStart(8, '0')
 
@@ -114,12 +116,13 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     // The start screen shrinks until its content fits the box, down to a floor. Below that the bar list
     // of a stacked screen scrolls inside its card, and a wide screen scrolls as a page.
     if (mode !== 'menu') return
+    const floor = box?.layout === 'wide' ? MIN_FIT_SCALE_WIDE : MIN_FIT_SCALE
     const bars = screenEl.querySelector<HTMLElement>('.arcade-bars-list')
     const overflows = (el: HTMLElement) =>
       el.scrollHeight > el.clientHeight || (bars !== null && bars.scrollHeight > bars.clientHeight + 1)
-    for (let step = 0; step < 8 && scale > MIN_FIT_SCALE && overflows(screenEl); step++) {
+    for (let step = 0; step < 8 && scale > floor && overflows(screenEl); step++) {
       const ratio = screenEl.scrollHeight > screenEl.clientHeight ? screenEl.clientHeight / screenEl.scrollHeight : 0.9
-      scale = Math.max(MIN_FIT_SCALE, scale * ratio)
+      scale = Math.max(floor, scale * ratio)
       screenEl.style.setProperty('--scale', String(scale))
     }
   }

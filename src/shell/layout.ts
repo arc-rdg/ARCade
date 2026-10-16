@@ -3,7 +3,10 @@
 const SIDE_BY_SIDE_MIN_EM = 28
 // Boxes smaller than this many em in either direction get the compact title card.
 const COMPACT_MAX_WIDTH_EM = 22.5
-const COMPACT_MAX_HEIGHT_EM = 16.25
+const COMPACT_MAX_HEIGHT_EM = 27
+// A short box that is also not very wide cannot hold the wide screen either.
+const SHORT_MAX_HEIGHT_EM = 36
+const SHORT_MAX_WIDTH_EM = 60
 // The banner would be unreadable below this many em, so a tile that small shows the icon.
 const BANNER_MIN_WIDTH_EM = 9
 const BANNER_MIN_HEIGHT_EM = 5.5
@@ -22,7 +25,8 @@ const clamp = (value: number) => Math.max(0.5, Math.min(3, value))
 
 export function boxFor(width: number, height: number, em: number): Box {
   const stacked = width < height || width < SIDE_BY_SIDE_MIN_EM * em
-  const compact = width < COMPACT_MAX_WIDTH_EM * em || height < COMPACT_MAX_HEIGHT_EM * em
+  const compact = width < COMPACT_MAX_WIDTH_EM * em || height < COMPACT_MAX_HEIGHT_EM * em ||
+    (height < SHORT_MAX_HEIGHT_EM * em && width < SHORT_MAX_WIDTH_EM * em)
   const layout = compact ? 'compact' : stacked ? 'stacked' : 'wide'
   const scale = compact
     ? Math.min(width / 300, height / 200)
