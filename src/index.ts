@@ -1,0 +1,6 @@
+export { mountArcade } from './shell/arcade'
+export type { ArcadeHandle, ArcadeOptions } from './shell/arcade'
+export { mountArcadeBanner } from './shell/banner'
+export type { ArcadeProvenance } from './arc/provenance/input'
+export type { GameEvent } from './game/contracts/events'
+export type { RunPlan } from './game/contracts/run'
