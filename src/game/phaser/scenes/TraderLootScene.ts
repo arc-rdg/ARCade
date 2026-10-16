@@ -73,7 +73,7 @@ export class TraderLootScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setStroke(NAVY, 2)
     this.faces = this.cards.map((card, i) => {
-      const face = createCardFace(this, glowTexture(this), '')
+      const face = createCardFace(this, glowTexture(this), String(i + 1))
       showCardOn(this, face, card, i * 0.17)
       face.box.setVisible(true).setAlpha(0)
       return face
