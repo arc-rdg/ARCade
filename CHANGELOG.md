@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.1 - 2026-10-16
+
+### 🔄 Changed
+
+- Your mage turns to face the mouse when an attack starts, so you can swing one way while running the other. Keyboard-only play works as before. #1 (by @caroott)
+- The store shows weapon upgrades the way level-up cards do: an outline, an UPGRADE ribbon and a "Becomes ..." tag. #2 (by @caroott)
+- After you beat the unFAIR Trader, you take or leave each card of his loot, so you can keep your weapon. Enter still takes everything. #3 (by @caroott)
+- The Accept All Cookies curse is now a cookie banner you click away instead of a stun. It blocks your attacks until you accept it, and it accepts itself after 8 s. #4 (by @caroott)
+- Firewall shows a flame aura and a ring out to its 3-tile reach. Its shield lasts 0.9 s instead of 0.4 s, it deals 20 damage instead of 8, and its cooldown drops from 16 s to 14 s. #5 (by @caroott)
+
+### 🐛 Fixed
+
+- The start screen in a narrow, tall box (a phone popup) showed only the mage; now the logo, quest and Start run button stay in view, and short boxes fit without scrolling (by @caroott)
+
 ## 0.1.0 - 2026-10-16
 
 ### ✨ Added
