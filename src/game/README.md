@@ -395,6 +395,47 @@ on footsteps and landings. It shows fully while it attacks, at 60 percent for 15
 50 percent during the pause inspection. If a phantom kills the mage, the death screen reads "Slain
 by a phantom" and tells the player to fill in the missing value. Key P in the MobSandbox spawns one.
 
+## Mob attacks and tells
+
+No mob attack gets a danger zone. Zones are for the really heavy attacks, mostly the bosses'. A mob
+telegraphs with a wind-up the player can read at normal zoom: the body and the weapon move into a
+pose, and the pose holds before the strike. The mob stands still for the whole wind-up.
+
+| Weapon | Wind-up | Body | Weapon |
+|---|---|---|---|
+| Claw | 320 ms | leans back 12 degrees and sinks | raised over the head |
+| Whip | 340 ms | twists back 8 degrees and steps back 4 units | cocked far behind |
+| Spear | 360 ms | leans back 8 degrees | pulled back 0.6 of its length |
+| Shield | 380 ms | braces in a crouch | drawn in and raised |
+| Bow | 250 ms or more | leans back 6 degrees | drawn back 0.3 of its length |
+| Wand | 220 ms or more | stretches up | held high |
+| Flask, bomb | 250 and 300 ms | none | swung back over the head |
+
+A golem adds 50 ms and rises on its toes (height x1.08) instead of sinking. The pose is 70 percent
+formed after 100 ms (ease-out over 200 ms) and holds for at least the last 80 ms
+(`windupForm` in `phaser/mobs/windup.ts`), and the body relaxes over 120 ms after the strike. The
+active windows and recoveries are unchanged. Everything uses the sprite's angle and scale and the
+weapon sprite's position, so a wind-up allocates nothing and draws no new texture.
+
+The tell colour is one full orange flash of 60 ms exactly when the wind-up starts, then a steady warm
+tint on the body only, so the weapon keeps its colours and stays readable. The beetle, the bat and
+the summoner use the same tell.
+
+- A bow or a wand adds wind-up at point-blank, so wind-up plus flight is at least 450 ms
+  (`rangedWindupMs`; a bow at 40 units winds up for about 325 ms). Lobbed flasks and bombs keep
+  their own timing.
+- Bows and wands on the ground back away from a player closer than 100 units, at 90 percent of their
+  speed, and stop at 130 units. They keep facing the player and stop at a wall or at a ledge, so they
+  never fall. A player who keeps pressing corners them and they still shoot. Turrets stay put.
+- The beetle crouches for 380 ms with two dust puffs before it charges. The bat starts a dive with a
+  320 ms wind-up: it pulls up 12 units, tilts toward the player and folds its wings (x0.85 wide). It
+  locks the aim at the end of the wind-up. A bat nearer than 120 units to the player flies off first
+  and never dives from that close, and neither a dive nor a charge starts while the mob is off screen.
+- Touching a mob hurts for no more than its weapon damage, except while it charges or dives.
+- An attack comes at least 800 ms after the last one, after the tuned and stance multipliers.
+- A blinker waits 300 ms after it lands before it attacks. A summoner puffs up for 300 ms before its
+  minions appear, and a minion cannot hurt by touch for its first 400 ms.
+
 ## Attack variants
 
 Light presses walk the light string. A light press during a move of the string waits for the
@@ -636,7 +677,8 @@ Click the canvas to give it keyboard focus.
 | Run, jump, dash, coyote time, jump buffer, wall jump | `model/input/motor.ts` (`MOTOR`) |
 | Air heavy bounce and Diminishing Returns chain heights | `model/input/motor.ts` (`PLUNGE_BOUNCE_FACTOR`, `CHAIN_BOUNCE_HEIGHTS`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
-| Mob behaviour timing (windups, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |
+| Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |
+| Mob wind-up poses, ranged lead, contact cap, back-away and dive rules | `phaser/mobs/windup.ts`, `phaser/mobs/weaponPose.ts` |
 | Node boss hp (`400 * (1 + 0.35 * segment index)`, 15% more with a dense theme) and XP | `model/content/boss.ts` |
 | Final boss hp (`600 * segments`) | `model/content/boss.ts` |
 | Boss slots, damage multiplier and hit cap | `model/content/bossGenome.ts` |
