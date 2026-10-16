@@ -53,8 +53,8 @@ describe('latestRelease', () => {
 
 describe('repository changelog', () => {
   it('has a newest entry that matches package.json', () => {
-    const changelog = readFileSync(new URL('../../CHANGELOG.md', import.meta.url), 'utf8')
-    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    const changelog = readFileSync('CHANGELOG.md', 'utf8')
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
     const release = latestRelease(changelog)
     expect(release.version).toBe(pkg.version)
     expect(release.notes).not.toBe('')
