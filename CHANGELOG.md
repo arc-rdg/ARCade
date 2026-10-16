@@ -16,6 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.5 - 2026-10-17
+
+### ✨ Added
+
+- Small scribble mouse cursors replace the system one in the game. During play the cursor follows your light weapon: a sword for the staff, scalpel and sequence whip, a star-cross for the wand, pipette pistol, ARCitect and ARC Commander. The cookie banner turns it into a cookie. Buttons and cards get a glove, a card you cannot buy gets a crossed circle, the level history and run recap lists get an open hand and a closed one while you drag, and monsters get a magnifier while the game is paused. The start screen, settings and changelog get the arrow and the glove too.
+- Attacks follow the cursor for 10 s after you last move or click the mouse (it was 3 s), and the gameplay cursor hides when the mouse rests for as long. Menus, pauses and overlays never hide it, and touch screens get no custom cursors.
+
+### 🔄 Changed
+
+- Jumps, dashes and attacks pressed in the last 120 ms of a flinch or stun now go through instead of getting lost.
+- Light attacks pull the weapon back before they swing. On the ground you run at half speed while attacking and at full speed once the attack can be cancelled, and an attack aimed with the mouse keeps the mage facing that way until it ends. Lunges now push you forward while you hold a direction. Dash attacks keep 60 % of the dash speed instead of all of it, so they slide much less far, and a dash or jump ends the hit pause right away.
+- Melee mobs wind up longer before they attack (320 to 380 ms, golems 50 ms more) with a visible lean, crouch or raised weapon, and a single orange flash replaces the strobe. Bats wind up before a dive and never dive from close range, and beetles crouch before they charge.
+- Bow and wand mobs back away when you get close, and their point-blank shots come later. Touching a mob no longer hurts more than its weapon, and a mob attacks at most once every 0.8 s.
+- Boss light attacks show a wind-up pose that lasts 270 ms after a step without annotations and up to 450 ms after a fully annotated one. It was 250 ms for every boss.
+- Bosses rest less between attacks, and the worse the annotation, the more they attack: about twice as often after a step without annotations, about 12 % more after a fully annotated one. The opening after a heavy attack is shorter, 0.4 to 0.7 s instead of 0.6 to 1.5 s.
+- Boss tell text shows up 300 ms before a heavy attack's danger zone. Floor rain also marks the platform tops, and its drops fall behind the platforms.
+- The camera follows at the same speed at 30, 60 and 120 fps and turns its look-ahead around faster.
+
+### 🐛 Fixed
+
+- The aimed boss beam hits exactly where it is drawn.
+- During a heavy boss rain the stagger bar stays locked until the last drop has landed. It used to unlock while drops were still falling, so hits filled it, and a stagger there left the drops falling and the boss did not look staggered.
+- A boss that changes phase in the middle of an attack no longer follows up with a heavy attack right away.
+- Standing on a platform during a quake or flood no longer counts towards the boss's camping rule.
+
 ## 0.1.4 - 2026-10-16
 
 ### ✨ Added

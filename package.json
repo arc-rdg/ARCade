@@ -1,6 +1,6 @@
 {
   "name": "@arc-rdg/arcade",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The ARCade game as a framework-free widget for ARC data.",
   "private": true,
   "type": "module",
