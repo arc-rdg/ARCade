@@ -587,6 +587,8 @@ const charge: AttackKind = {
 // them, so the floor below is safe.
 const RAIN_RADIUS = 7
 const RAIN_BAND = 48
+// How long a drop from the sky lives. The floor drops break after this.
+const RAIN_DROP_MS = 800
 // Floor rain falls behind the platforms, so it reads as falling past them. The platforms are drawn
 // at DEPTH.tiles. The drops still hit a player on a platform.
 const RAIN_DEPTH = DEPTH.tiles - 1
@@ -627,7 +629,7 @@ function dropRain(run: AttackRun, env: AttackEnv): void {
     vx: 0,
     vy: 60,
     gravity: 760,
-    lifetimeMs: 800,
+    lifetimeMs: RAIN_DROP_MS,
     depth: RAIN_DEPTH,
     radius: RAIN_RADIUS,
     knock: { x: 40, y: -140 },
@@ -658,11 +660,19 @@ const rain: AttackKind = {
   windup(run, env) {
     if (!run.spec.heavy) lightPose(run, env, 'rain', 0)
   },
-  fire(run) {
+  fire(run, env) {
     run.count = run.spec.heavy ? 18 : 10
     run.intervalMs = run.spec.heavy ? 70 : 100
     run.timerMs = 0
     run.activeMs = run.count * run.intervalMs + 200
+    // A heavy rain stays active (bar locked, zone up) until its last drop has landed.
+    if (run.spec.heavy) {
+      const { arena } = env
+      const y = arena.floorY - SKY
+      const ledgeMs = Math.max(0, ...arena.platforms.map((p) => fallMs(p.top - y, 60, 760)))
+      const dropMs = run.variant === 1 ? ledgeMs : RAIN_DROP_MS
+      run.activeMs = (run.count - 1) * run.intervalMs + dropMs + 100
+    }
   },
   active(run, env, dtMs) {
     run.timerMs -= dtMs
