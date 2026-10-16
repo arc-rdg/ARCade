@@ -35,8 +35,11 @@ export const MECHANIC_SLOTS = 3
 export const FINAL_PHASE_MECHANICS = 2
 // No single boss hit may take more than this. The mage starts with 100 hp.
 export const MAX_BOSS_HIT = 35
-// Light attacks wind up with a fixed short flash, heavy ones with the step's telegraph time.
-export const LIGHT_TELEGRAPH_MS = 250
+// Light attacks wind up with a visible pose, heavy ones with a danger zone for the step's telegraph
+// time. The light wind-up grows with the annotation quality, from 270 ms for an empty step to 450 ms
+// for a fully annotated one.
+export const LIGHT_TELEGRAPH_MIN_MS = 270
+export const LIGHT_TELEGRAPH_SPAN_MS = 180
 export const MIN_TELEGRAPH_MS = 80
 // The extra damage of a boss at quality 0, falling linearly to none at quality 1.
 const MAX_EXTRA_DAMAGE = 0.55
@@ -85,6 +88,12 @@ export function bossDamageScale(quality: number): number {
   return Math.round((1 + MAX_EXTRA_DAMAGE * (1 - q)) * 100 + 1e-9) / 100
 }
 
+// 270 ms at quality 0 up to 450 ms at quality 1.
+export function lightTelegraphMs(quality: number): number {
+  const q = Math.min(1, Math.max(0, quality))
+  return Math.round(LIGHT_TELEGRAPH_MIN_MS + LIGHT_TELEGRAPH_SPAN_MS * q)
+}
+
 export function scaledHit(damage: number, scale: number): number {
   return Math.min(MAX_BOSS_HIT, Math.round(damage * scale))
 }
@@ -118,6 +127,7 @@ function freeKind(pool: readonly BossAttackKind[], start: number, taken: readonl
 interface AttackContext {
   archetype: BossArchetype
   telegraphMs: number
+  quality: number
   damageScale: number
   theme: BossThemeKind | null
 }
@@ -129,7 +139,7 @@ function toSpec(template: AttackTemplate, id: string, ctx: AttackContext): BossA
     name: template.name,
     kind: template.kind,
     heavy: template.heavy,
-    telegraphMs: template.heavy ? ctx.telegraphMs : LIGHT_TELEGRAPH_MS,
+    telegraphMs: template.heavy ? ctx.telegraphMs : lightTelegraphMs(ctx.quality),
     damage: scaledHit(template.damage * heat, ctx.damageScale),
     cooldownMs: template.cooldownMs,
   }
@@ -197,7 +207,7 @@ export function bossGenome(segment: Segment, fallbackKind: IoKind): BossGenome {
   const damageScale = bossDamageScale(segment.quality)
   const withUnits = annotations.filter(hasUnit)
   const theme = themeOf(withUnits)
-  const ctx: AttackContext = { archetype, telegraphMs: Math.max(MIN_TELEGRAPH_MS, segment.telegraphMs), damageScale, theme: theme.kind }
+  const ctx: AttackContext = { archetype, telegraphMs: Math.max(MIN_TELEGRAPH_MS, segment.telegraphMs), quality: segment.quality, damageScale, theme: theme.kind }
 
   const termed = annotations.filter(hasTerm)
   const taken: BossAttackKind[] = []
@@ -249,8 +259,9 @@ function shiftedLights(genome: BossGenome): BossAttackSpec[] {
   return lights.map((attack, i) => {
     const kind = freeKind(LIGHT_KINDS, LIGHT_KINDS.indexOf(attack.kind) + 2, taken)
     taken.push(kind)
-    const ctx: AttackContext = { archetype: genome.body.archetype, telegraphMs: 0, damageScale: genome.damageScale, theme: genome.theme.kind }
-    return toSpec(attackTemplate(genome.body.archetype, kind, false), `${genome.body.archetype}.${kind}.shift${i}`, ctx)
+    const ctx: AttackContext = { archetype: genome.body.archetype, telegraphMs: 0, quality: 0, damageScale: genome.damageScale, theme: genome.theme.kind }
+    // The shifted attack winds up as long as the one it replaces, so the quality carries over.
+    return { ...toSpec(attackTemplate(genome.body.archetype, kind, false), `${genome.body.archetype}.${kind}.shift${i}`, ctx), telegraphMs: attack.telegraphMs }
   })
 }
 

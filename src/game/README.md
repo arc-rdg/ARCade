@@ -26,7 +26,9 @@ time. `model/run/` turns the index into a `RunPlan`:
 4. Telegraph. Heavy boss attacks warn `telegraphMs = 80 + 820 * quality` ms ahead. At quality 0 the
    boss also hides its hp bar and attack names. More quality brings safe zones, weak points,
    visible tells (the node's own annotations), a longer stagger and a smaller stagger bar
-   (`bosses/stagger.ts`): a boss at quality 0 is nearly unstaggerable.
+   (`bosses/stagger.ts`): a boss at quality 0 is nearly unstaggerable. Light boss attacks have no
+   danger zone. They wind up with a pose, `lightTelegraphMs = 270 + 180 * quality` ms long (270 ms
+   at quality 0, 450 ms at quality 1), see [Bosses](#bosses).
 
 The node after each segment is a boss, see [Bosses](#bosses). A beaten node boss leaves a portal to
 a waystation, see [The waystation](#the-waystation), and the exit portal of the waystation leads to
@@ -111,6 +113,27 @@ warning. The minions walk at 54 units per second, a quarter of the mage's run, a
 platform: they walk to a spot just beside it, crouch for 0.38 s and hop up in 0.56 s. A minion on a
 platform the mage has left walks off the edge and drops. The shots of the fan and the mirror aim at
 the middle of the mage, height included, and end at the walls, the floor or the ceiling.
+
+Only the heavy attacks get a danger zone. A light attack is shown by a pose of the body, formed
+with an ease-out in 40% of the wind-up (80 to 120 ms) and held until the strike,
+on top of the 110 ms white flash at its start. The wind-up is `270 + 180 * quality` ms
+(`lightTelegraphMs`, the final boss and the phase shift use the same value). The poses
+(`phaser/bosses/pose.ts`):
+
+| Light attack | Pose |
+|---|---|
+| Sweep | leans back 0.25 rad, both arms cocked behind |
+| Charge | crouches (height ×0.88), leans back 0.2 rad, two puffs of dust behind the feet |
+| Projectile fan | rears up (leans back 0.15 rad) and puffs up (size ×1.08) |
+| Rain | both arms straight up |
+| Summon | both arms spread wide |
+
+A well-annotated step shows the tell text (the node's own annotations) 300 ms before the zone of a
+heavy attack appears (`TELL_LEAD_MS`), so it can be read first. The heavy attack starts after
+that. A step without annotations has no tell and no delay. The quake and the flood send the mage up
+onto the platforms, so the time on a platform does not count towards camping from their wind-up
+until 500 ms after the strike (`CAMP_HOLD_MS`). The rain's danger band also covers the platform
+tops, because the drops hit a mage up there, and the drops are drawn behind the platforms.
 
 The quality of the step (`annotations / 8`) alone still drives the telegraph time, the hp bar and
 attack names, the safe zones, the weak points, the stagger window and the stagger bar size. It also
@@ -619,7 +642,10 @@ Click the canvas to give it keyboard focus.
 | Boss slots, damage multiplier and hit cap | `model/content/bossGenome.ts` |
 | Boss attack kinds, names, damage and cooldowns | `model/content/bossAttacks.ts` |
 | Boss mechanic timers, armour, shield and spill | `phaser/bosses/mechanics.ts` |
-| Platform camping time, attack weights while camping, minion speed and hop | `phaser/bosses/reach.ts` |
+| Platform camping time and hold, attack weights while camping, minion speed and hop | `phaser/bosses/reach.ts` |
+| Light attack wind-up (`lightTelegraphMs`) | `model/content/bossGenome.ts` |
+| Light attack poses and their timing | `phaser/bosses/pose.ts` |
+| Tell lead before a heavy attack (`TELL_LEAD_MS`) | `phaser/bosses/tellLead.ts` |
 | Quality and telegraph formulas | `model/run/segment.ts` |
 | XP per level (`20 + 10 * (level - 1)`), hp per level, stat caps, card effects | `model/progression/build.ts` |
 | Card names, texts and rarities (the ids keep the first names, `stat.thickRobe` is Redundant Storage) | `model/progression/catalog.ts`, flavour lines in `flavor.ts` |

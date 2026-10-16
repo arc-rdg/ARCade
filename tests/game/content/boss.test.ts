@@ -4,7 +4,7 @@ import { buildProvenanceIndex } from '../../../src/arc/provenance/buildIndex'
 import type { IoKind } from '../../../src/arc/provenance/types'
 import { createRng } from '../../../src/game/contracts/rng'
 import type { RunNode, RunPlan, Segment } from '../../../src/game/contracts/run'
-import { bossArchetypeFor, bossFromNode, bossGenome, FINAL_PHASE_MECHANICS, finalBossFromPlan } from '../../../src/game/model/content'
+import { bossArchetypeFor, bossFromNode, bossGenome, FINAL_PHASE_MECHANICS, finalBossFromPlan, lightTelegraphMs } from '../../../src/game/model/content'
 import { planRun } from '../../../src/game/model/run'
 import { crateJson } from '../../helpers/sampleCrate'
 
@@ -55,7 +55,7 @@ describe('bossFromNode', () => {
     expect(boss.weakPoints).toBe(zones)
     expect(boss.staggerWindowMs).toBe(stagger)
     expect(boss.tells).toBe(node.annotations)
-    for (const attack of boss.attacks) expect(attack.telegraphMs).toBe(attack.heavy ? telegraphMs : 250)
+    for (const attack of boss.attacks) expect(attack.telegraphMs).toBe(attack.heavy ? telegraphMs : lightTelegraphMs(quality))
     expect(boss.damageScale).toBe([1.55, 1.28, 1][[0, 0.5, 1].indexOf(quality)])
   })
 
@@ -117,7 +117,7 @@ describe('finalBossFromPlan', () => {
       expect(phase.attacks.filter((attack) => attack.heavy)).toHaveLength(2)
       expect(phase.mechanics.length).toBeLessThanOrEqual(FINAL_PHASE_MECHANICS)
       expect(new Set(phase.attacks.map((attack) => attack.id)).size).toBe(phase.attacks.length)
-      for (const attack of phase.attacks) expect(attack.telegraphMs).toBe(attack.heavy ? phase.telegraphMs : 250)
+      for (const attack of phase.attacks) expect(attack.telegraphMs).toBe(attack.heavy ? phase.telegraphMs : lightTelegraphMs(phase.quality))
     }
   })
 

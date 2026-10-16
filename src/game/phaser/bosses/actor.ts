@@ -9,14 +9,17 @@ import type { MonsterDescription } from '../../model/content'
 import { cssColor } from '../color'
 import { addStatus, clearStatus, createStatus, statusTimeScale, tickStatus } from '../combat/status'
 import { createAdds } from './adds'
-import { ATTACK_KINDS, createRun, resetRun } from './attacks'
+import { ATTACK_KINDS, createRun, isFloorOnly, resetRun } from './attacks'
 import type { AttackEnv, BossBody } from './attacks'
+import { playFx } from '../mobs/fx'
 import { registerInspectable } from '../mobs/inspect'
 import { INSPECT_DIM_DEPTH } from '../mobs/tuning'
 import type { Arena, BossDeps, BossHandle } from './index'
 import { createMechanics } from './mechanics'
 import { campWeight, createPerchWatch, isCamping, watchPerch } from './reach'
 import { createScheduler, OPENING_DELAY_MS, windupMs } from './scheduler'
+import { createLead, leadMsFor, TELL_LEAD_MS, tickLead } from './tellLead'
+import { clearPose, createPose, poseArmAngle, poseScale } from './pose'
 import { applyRef, setOriginOf, stillTexture } from './sprites'
 import { staggerBarSize, staggerDurationMs, staggerLocked, staggerProgress } from './stagger'
 import { createTelegraphPool, createTextPool } from './telegraph'
@@ -75,7 +78,10 @@ const DEFEAT_FADE_MS = 900
 const SLOWED_TINT = 0x9fd6ff
 const HURT_FLASH_MS = 70
 const LIGHT_FLASH_MS = 110
-const TELL_MS = 1400
+// The tell stays up as long after the zone appears as it did before the lead was added.
+const TELL_MS = 1400 + TELL_LEAD_MS
+// The pose of a light attack lets go this fast once it strikes.
+const POSE_RELEASE_MS = 70
 const RECOVERY_HEAVY_MS = 280
 const RECOVERY_LIGHT_MS = 160
 const ARMS_DROP_MS = 150
@@ -174,6 +180,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     facing: -1,
     alpha: 1,
     lean: 0,
+    pose: createPose(),
     hurtW,
     hurtH,
     height,
@@ -183,6 +190,9 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
   const pos = { x: 0, y: 0 }
   const run = createRun()
   const scheduler = createScheduler<BossAttackSpec>(rng.fork('attacks'))
+  // A heavy attack waits here while its tell shows, see TELL_LEAD_MS.
+  const lead = createLead<BossAttackSpec>()
+  const squash = { x: 1, y: 1 }
   scheduler.setAttacks(first.attacks, first.quality, OPENING_DELAY_MS)
   const cfg = () => phases[phase]
 
@@ -291,6 +301,9 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     extraShots: 0,
     aimedChance: AIMED_CHANCE,
     shotArt: null,
+    puff(x, y, size) {
+      playFx(scene, deps.art, 'dust', x, y, size)
+    },
     shotKey(kind) {
       let key = shotKeys.get(kind)
       if (!key) {
@@ -342,6 +355,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
   // Shots of earlier attacks keep flying, and a phase change or the defeat cancels them through
   // the combat world.
   function interrupt(clearShots: boolean) {
+    lead.spec = null
     if (run.phase === 'none') return
     releaseZones()
     for (const box of run.boxes) box.cancel()
@@ -350,6 +364,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     run.shots.length = 0
     run.phase = 'none'
     body.lean = 0
+    clearPose(body.pose)
     body.alpha = 1
     body.lift = env.hover
     body.x = clamp(body.x, minX, maxX)
@@ -362,6 +377,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     run.shots.length = 0
     run.phase = 'none'
     body.lean = 0
+    clearPose(body.pose)
     body.alpha = 1
     scheduler.complete()
   }
@@ -375,11 +391,30 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     tellMs = TELL_MS
   }
 
+  // A heavy attack with a tell shows the tell first and starts TELL_LEAD_MS later.
   function beginAttack(spec: BossAttackSpec) {
+    if (spec.heavy) showTell()
+    const leadMs = leadMsFor(spec.heavy, cfg().tells.length > 0)
+    if (leadMs > 0) {
+      lead.spec = spec
+      lead.ms = leadMs
+      return
+    }
+    startAttack(spec)
+  }
+
+  function startAttack(spec: BossAttackSpec) {
     resetRun(run, spec, windupMs(spec.telegraphMs))
     ATTACK_KINDS[spec.kind].begin(run, env)
-    if (spec.heavy) showTell()
-    else lightFlashMs = LIGHT_FLASH_MS
+    if (!spec.heavy) lightFlashMs = LIGHT_FLASH_MS
+  }
+
+  // The pose of a light attack drops as the attack strikes.
+  function releasePose(dtMs: number) {
+    const pose = body.pose
+    if (pose.kind === 'none') return
+    pose.t -= pose.t * Math.min(1, dtMs / POSE_RELEASE_MS)
+    if (pose.t < 0.02) clearPose(pose)
   }
 
   function stepAttack(dtMs: number) {
@@ -394,6 +429,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
         for (const zone of run.zones) zone.activate()
       }
     } else if (run.phase === 'active') {
+      releasePose(dtMs)
       kind.active?.(run, env, dtMs)
       if (run.elapsedMs >= run.activeMs) {
         run.phase = 'recovery'
@@ -401,6 +437,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
         releaseZones()
       }
     } else if (run.phase === 'recovery') {
+      releasePose(dtMs)
       body.lean -= body.lean * Math.min(1, dtMs / 120)
       if (run.elapsedMs >= (run.spec.heavy ? RECOVERY_HEAVY_MS : RECOVERY_LIGHT_MS)) finishAttack()
     }
@@ -629,13 +666,13 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     scheduler.tick(dtMs)
     // The player's time, not the boss clock: a slowed boss does not make the platforms safer.
     const feet = player.position()
-    watchPerch(perch, arena.platforms, feet.x, feet.y, player.isGrounded(), realMs)
+    watchPerch(perch, arena.platforms, feet.x, feet.y, player.isGrounded(), realMs, isFloorOnly(run))
     adds.update(realMs)
     if (transitionMs > 0) {
       transitionMs = Math.max(0, transitionMs - dtMs)
       return
     }
-    mechanics.update(dtMs, { idle: staggerMs <= 0 && run.phase === 'none' && !move.hopping, lastHeavy, phaseHp: (hp - floorHp()) / phaseHp })
+    mechanics.update(dtMs, { idle: staggerMs <= 0 && run.phase === 'none' && !move.hopping && lead.spec === null, lastHeavy, phaseHp: (hp - floorHp()) / phaseHp })
     scheduler.setCooldownScale(themeScale * mechanics.cooldownScale())
     if (staggerMs > 0) {
       staggerMs = Math.max(0, staggerMs - dtMs)
@@ -648,6 +685,14 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     }
     if (run.phase !== 'none') {
       stepAttack(dtMs)
+      return
+    }
+    if (lead.spec) {
+      // The tell is up, the zone follows when the lead is over.
+      moveIdle(dtMs)
+      const due = tickLead(lead, dtMs)
+      if (due && !player.isDead()) startAttack(due)
+      else if (due) scheduler.complete()
       return
     }
     if (!moveIdle(dtMs) || player.isDead() || mechanics.busy()) return
@@ -677,9 +722,13 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     let crouch = 0
     let stretch = 0
     if (run.phase === 'windup') {
-      raise = Math.min(1, run.elapsedMs / run.windupMs)
-      crouch = raise
-      for (const zone of run.zones) zone.setProgress(raise)
+      const progress = Math.min(1, run.elapsedMs / run.windupMs)
+      // A heavy attack raises its arms and crouches over the whole wind-up. A light one holds its pose.
+      if (run.spec.heavy) {
+        raise = progress
+        crouch = progress
+      }
+      for (const zone of run.zones) zone.setProgress(progress)
     } else if (run.phase === 'active') {
       raise = Math.max(0, 1 - run.elapsedMs / ARMS_DROP_MS)
       stretch = Math.max(0, 1 - run.elapsedMs / (ARMS_DROP_MS + 20))
@@ -695,7 +744,8 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     if (visible) {
       sprite.setPosition(body.x, y)
       sprite.setFlipX(mirrored)
-      sprite.setScale(baseScale.x * (1 + 0.05 * crouch - 0.05 * stretch), baseScale.y * (1 - 0.08 * crouch + 0.08 * stretch + breathe))
+      poseScale(body.pose, squash)
+      sprite.setScale(baseScale.x * (1 + 0.05 * crouch - 0.05 * stretch) * squash.x, baseScale.y * (1 - 0.08 * crouch + 0.08 * stretch + breathe) * squash.y)
       sprite.setRotation(body.lean + wobble)
       sprite.setAlpha(alpha)
       if (tintChanged && highlight <= 0) paintTint(sprite, tint)
@@ -714,8 +764,9 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
       // Arms swing from the shoulder, a hand or lid turns less.
       const reach = -pivot.y / partHeight >= 0.9 ? 2 : 0.7
       const swing = worldSide === 0 ? -limbFacing * 0.6 * raise : -worldSide * reach * raise
-      part.setPosition(body.x + limbFacing * (rest.x + pivot.x), y + rest.y + pivot.y)
-      part.setRotation(swing + Math.sin(now / 500 + limb.phase) * 0.06)
+      part.setPosition(body.x + limbFacing * (rest.x + pivot.x) * squash.x, y + (rest.y + pivot.y) * squash.y)
+      const posed = reach === 2 ? poseArmAngle(body.pose, worldSide, facing) : null
+      part.setRotation((posed ?? swing) + Math.sin(now / 500 + limb.phase) * 0.06)
       part.setAlpha(alpha)
       if (tintChanged && highlight <= 0) paintTint(part, tint)
     }
@@ -739,7 +790,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
       star.setPosition(body.x + Math.cos(angle) * 22, y - height - 6 + Math.sin(angle) * 6)
     }
 
-    if (tellText) tellText.setPosition(body.x, y - height - (dizzy ? 20 : 8)).setAlpha(Math.min(1, tellMs / 300))
+    if (tellText) tellText.setPosition(body.x, y - height - (dizzy ? 20 : 8)).setAlpha(Math.min(1, tellMs / 300, (TELL_MS - tellMs) / 120))
     mechanics.render(now, y - height - (tellText ? 14 : 0) - (dizzy ? 12 : 0), alpha, visible)
     telegraphs.update(now)
   }

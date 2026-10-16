@@ -7,6 +7,7 @@ export {
   bossGenome,
   genomeAttacks,
   genomeMechanics,
+  lightTelegraphMs,
   scaledHit,
   unitTheme,
 } from './bossGenome'

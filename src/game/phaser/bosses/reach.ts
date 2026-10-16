@@ -11,6 +11,9 @@ import type { ArenaPlatform } from './zones'
 
 // Time on the platforms before the boss starts to go for them.
 export const CAMP_MS = 2000
+// A floor-only attack that shows the ledges as safe (the quake and the flood) sends the player up
+// there. That time does not count as camping, from the wind-up until this long after the strike.
+export const CAMP_HOLD_MS = 500
 // Each ms on the floor takes this many ms off the time up there, so a short drop does not reset it.
 const FLOOR_DECAY = 2
 
@@ -20,10 +23,12 @@ export interface PerchWatch {
   ledge: ArenaPlatform | null
   // Time spent up there, see CAMP_MS.
   campMs: number
+  // Time left that a floor-only attack still holds the count, see CAMP_HOLD_MS.
+  holdMs: number
 }
 
 export function createPerchWatch(): PerchWatch {
-  return { ledge: null, campMs: 0 }
+  return { ledge: null, campMs: 0, holdMs: 0 }
 }
 
 // Once per step with the player's feet. The ledge only changes on a landing, so a jump on a
@@ -35,10 +40,15 @@ export function watchPerch(
   feetY: number,
   grounded: boolean,
   dtMs: number,
+  floorOnly = false,
 ): void {
   if (grounded) watch.ledge = platformUnder(platforms, x, feetY, FEET_MARGIN)
-  if (watch.ledge) watch.campMs += dtMs
-  else watch.campMs = Math.max(0, watch.campMs - dtMs * FLOOR_DECAY)
+  // While a floor-only attack runs, and CAMP_HOLD_MS after it, the time up there is not counted.
+  if (floorOnly) watch.holdMs = CAMP_HOLD_MS
+  else watch.holdMs = Math.max(0, watch.holdMs - dtMs)
+  if (watch.ledge) {
+    if (watch.holdMs <= 0) watch.campMs += dtMs
+  } else watch.campMs = Math.max(0, watch.campMs - dtMs * FLOOR_DECAY)
 }
 
 export function isCamping(watch: PerchWatch): boolean {

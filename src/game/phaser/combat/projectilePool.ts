@@ -9,13 +9,14 @@ export function createProjectilePool(scene: Phaser.Scene, scale: number) {
   const all = new Set<Phaser.GameObjects.Sprite>()
 
   return {
-    acquire(textureKey: string, animKey: string | null, x: number, y: number): Phaser.GameObjects.Sprite {
+    acquire(textureKey: string, animKey: string | null, x: number, y: number, depth: number = DEPTH.projectiles): Phaser.GameObjects.Sprite {
       let sprite = free.pop()
       if (!sprite) {
         sprite = scene.add.sprite(x, y, textureKey).setDepth(DEPTH.projectiles)
         all.add(sprite)
       }
       sprite.stop()
+      sprite.setDepth(depth)
       sprite.setTexture(textureKey)
       sprite.setPosition(x, y).setScale(scale).setRotation(0).setFlipX(false).setActive(true).setVisible(true)
       if (animKey && scene.anims.exists(animKey)) sprite.play(animKey)

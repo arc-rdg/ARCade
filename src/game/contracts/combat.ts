@@ -81,6 +81,8 @@ export interface ProjectileSpec extends Omit<HitboxSpec, 'follow' | 'activeMs'> 
   // The SpriteRef's animation. Art textures hold several variants side by side, so without it the
   // projectile shows the whole strip.
   animKey?: string
+  // Draw depth, DEPTH.projectiles when absent. Rain falls behind the platforms with a lower one.
+  depth?: number
   velocity: { x: number; y: number }
   gravity: number
   lifetimeMs: number

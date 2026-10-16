@@ -1,12 +1,14 @@
 import type Phaser from 'phaser'
 import type { ProjectileArt, ScribbleArt } from '../../contracts/art'
 import type { Combatant, CombatWorld, HitShape } from '../../contracts/combat'
-import { STEP_MS } from '../../contracts/constants'
+import { DEPTH, STEP_MS } from '../../contracts/constants'
 import type { BossArchetype, BossAttackKind, BossAttackSpec } from '../../contracts/content'
 import type { PlayerHandle } from '../../contracts/player'
 import type { Rng } from '../../contracts/rng'
 import type { Adds } from './adds'
 import type { Arena } from './index'
+import { poseProgress } from './pose'
+import type { Pose, PoseKind } from './pose'
 import { isCamping } from './reach'
 import type { PerchWatch } from './reach'
 import type { TelegraphPool, Zone, ZoneSpec } from './telegraph'
@@ -48,6 +50,8 @@ export interface BossBody {
   alpha: number
   // Extra tilt in radians, for leaning into an attack.
   lean: number
+  // The pose of a light attack's wind-up, see pose.ts.
+  pose: Pose
   // Hurtbox size and sprite height, world units.
   hurtW: number
   hurtH: number
@@ -98,6 +102,14 @@ export interface AttackRun {
   intervalMs: number
   count: number
   speed: number
+}
+
+// True for the wind-up and the strike of a floor-only attack that shows the ledges as safe: the
+// quake and the flood. The player on a platform is not camping then, he is doing what the attack
+// asks for, so reach.ts does not count that time.
+export function isFloorOnly(run: AttackRun): boolean {
+  if (run.phase !== 'windup' && run.phase !== 'active') return false
+  return (run.spec.kind === 'slam' && run.variant === 2) || (run.spec.kind === 'shockwave' && run.variant === 1)
 }
 
 export function createRun(): AttackRun {
@@ -169,6 +181,8 @@ export interface AttackEnv {
   extraShots: number
   aimedChance: number
   shotArt: ProjectileArt | null
+  // A puff of dust at a point on the floor, size in world units wide.
+  puff(x: number, y: number, size: number): void
   // Texture key for a projectile of this art kind.
   shotKey(kind: ProjectileArt): string
 }
@@ -216,6 +230,16 @@ function playerCentre(env: AttackEnv): { x: number; y: number } {
 function faceToward(env: AttackEnv, x: number): Facing {
   env.body.facing = x >= env.body.x ? 1 : -1
   return env.body.facing
+}
+
+// The wind-up of a light attack: the pose forms over the first part of the wind-up and is held,
+// and the body leans back by `leanBack` radians. Returns how far the pose has formed.
+function lightPose(run: AttackRun, env: AttackEnv, kind: PoseKind, leanBack: number): number {
+  const t = poseProgress(run.elapsedMs, run.windupMs)
+  env.body.pose.kind = kind
+  env.body.pose.t = t
+  env.body.lean = -run.dir * leanBack * t
+  return t
 }
 
 function show(run: AttackRun, env: AttackEnv, spec: ZoneSpec): void {
@@ -269,6 +293,7 @@ interface Shot {
   knock: { x: number; y: number }
   reflectable: boolean
   rect?: { w: number; h: number }
+  depth?: number
 }
 
 function shoot(run: AttackRun, env: AttackEnv, kind: ProjectileArt, shot: Shot): void {
@@ -289,6 +314,7 @@ function shoot(run: AttackRun, env: AttackEnv, kind: ProjectileArt, shot: Shot):
         velocity: { x: shot.vx, y: shot.vy },
         gravity: shot.gravity,
         lifetimeMs: shot.lifetimeMs,
+        depth: shot.depth,
         pierce: 0,
         reflectable: shot.reflectable,
       },
@@ -412,7 +438,8 @@ const sweep: AttackKind = {
     })
   },
   windup(run, env, progress) {
-    env.body.lean = -run.dir * 0.18 * progress
+    if (!run.spec.heavy) lightPose(run, env, 'sweep', 0.25)
+    else env.body.lean = -run.dir * 0.18 * progress
   },
   fire(run, env) {
     const x = run.dir === 1 ? run.targetX : run.targetX - run.length
@@ -442,6 +469,10 @@ const projectileFan: AttackKind = {
     const aim = playerCentre(env)
     run.angle = Math.atan2(aim.y - from.y, aim.x - from.x)
     show(run, env, { shape: 'cone', x: from.x, y: from.y, w: 220, h: 130, rotation: run.angle, fill: 'right' })
+  },
+  windup(run, env) {
+    // Rears up and puffs itself up.
+    lightPose(run, env, 'fan', 0.15)
   },
   fire(run, env) {
     const from = muzzle(env)
@@ -482,6 +513,18 @@ function chargeLift(run: AttackRun, env: AttackEnv): number {
   return run.ledge ? env.arena.floorY - run.ledge.top : 0
 }
 
+// Two puffs of dust behind the feet, the first as the boss sets itself and the second a moment later.
+// run.timerMs counts the puffs, the charge uses it for nothing else.
+const PUFF_AT_MS = [0, 60]
+function puffDust(run: AttackRun, env: AttackEnv): void {
+  while (run.timerMs < PUFF_AT_MS.length && run.elapsedMs >= PUFF_AT_MS[run.timerMs]) {
+    const { body, arena } = env
+    const back = run.timerMs === 0 ? 0.25 : 0.5
+    env.puff(body.x - run.dir * body.hurtW * back, arena.floorY - body.lift - 4, run.timerMs === 0 ? 26 : 20)
+    run.timerMs++
+  }
+}
+
 const charge: AttackKind = {
   begin(run, env) {
     const { arena, body } = env
@@ -502,7 +545,10 @@ const charge: AttackKind = {
     })
   },
   windup(run, env, progress) {
-    env.body.lean = -run.dir * 0.2 * progress
+    if (!run.spec.heavy) {
+      lightPose(run, env, 'charge', 0.2)
+      puffDust(run, env)
+    } else env.body.lean = -run.dir * 0.2 * progress
     if (!run.ledge) return
     // Up to the lane in the last LEAP_MS, so the boss is there when it fills.
     const leapMs = Math.min(run.windupMs, LEAP_MS)
@@ -541,6 +587,9 @@ const charge: AttackKind = {
 // them, so the floor below is safe.
 const RAIN_RADIUS = 7
 const RAIN_BAND = 48
+// Floor rain falls behind the platforms, so it reads as falling past them. The platforms are drawn
+// at DEPTH.tiles. The drops still hit a player on a platform.
+const RAIN_DEPTH = DEPTH.tiles - 1
 
 function dropOnLedge(run: AttackRun, env: AttackEnv): void {
   const { arena, rng } = env
@@ -579,10 +628,15 @@ function dropRain(run: AttackRun, env: AttackEnv): void {
     vy: 60,
     gravity: 760,
     lifetimeMs: 800,
+    depth: RAIN_DEPTH,
     radius: RAIN_RADIUS,
     knock: { x: 40, y: -140 },
     reflectable: false,
   })
+}
+
+function showLedgeBands(run: AttackRun, env: AttackEnv): void {
+  for (const p of env.arena.platforms) show(run, env, { shape: 'rect', x: p.x + p.w / 2, y: p.top - RAIN_BAND / 2, w: p.w + 12, h: RAIN_BAND, fill: 'wide' })
 }
 
 const rain: AttackKind = {
@@ -592,12 +646,17 @@ const rain: AttackKind = {
     // A player who camps on a platform always gets the platform rain.
     run.variant = run.spec.heavy && hasLedges(env) && (isCamping(env.perch) || env.rng.chance(0.4)) ? 1 : 0
     if (run.variant === 1) {
-      for (const p of arena.platforms) show(run, env, { shape: 'rect', x: p.x + p.w / 2, y: p.top - RAIN_BAND / 2, w: p.w + 12, h: RAIN_BAND, fill: 'wide' })
+      showLedgeBands(run, env)
       return
     }
     run.safe = safeIntervals(env.rng, arena.left, arena.right, env.safeZones, SAFE_WIDTH)
     show(run, env, { shape: 'rect', x: (arena.left + arena.right) / 2, y: arena.floorY - RAIN_BAND / 2, w: arena.right - arena.left, h: RAIN_BAND, fill: 'wide' })
+    // The drops hit a player on a platform too, so the platform tops are danger as well.
+    showLedgeBands(run, env)
     showSafe(run, env, arena.floorY - RAIN_BAND / 2, RAIN_BAND + 6)
+  },
+  windup(run, env) {
+    if (!run.spec.heavy) lightPose(run, env, 'rain', 0)
   },
   fire(run) {
     run.count = run.spec.heavy ? 18 : 10
@@ -621,7 +680,19 @@ const rain: AttackKind = {
 // player drops to the floor, which lights up as safe.
 const BEAM_LENGTH = 420
 const BEAM_THICKNESS = 16
-const BEAM_STEP = 18
+// The aimed beam is a chain of circles of half the drawn thickness, a step apart that is smaller
+// than their diameter, so the chain has no gaps and never leaves the drawn band.
+const BEAM_RADIUS = BEAM_THICKNESS / 2
+const BEAM_STEP = 12
+
+// Centres of the circles along a beam of that length. The first and the last circle end at the ends of
+// the drawn line.
+export function beamCircleOffsets(length: number): number[] {
+  const offsets: number[] = []
+  for (let d = BEAM_RADIUS; d <= length - BEAM_RADIUS + 1e-6; d += BEAM_STEP) offsets.push(d)
+  return offsets
+}
+export const BEAM_CIRCLE_RADIUS = BEAM_RADIUS
 
 const FLOOR_SAFE_HEIGHT = 24
 
@@ -682,8 +753,8 @@ const beam: AttackKind = {
       const x = run.dir === 1 ? run.startX : run.startX - run.length
       hit(run, env, { kind: 'rect', x, y: run.top - BEAM_THICKNESS / 2, w: run.length, h: BEAM_THICKNESS }, 420, knock)
     } else {
-      for (let d = 12; d <= run.length; d += BEAM_STEP) {
-        hit(run, env, { kind: 'circle', x: run.startX + cos * d, y: run.top + sin * d, r: 11 }, 420, knock)
+      for (const d of beamCircleOffsets(run.length)) {
+        hit(run, env, { kind: 'circle', x: run.startX + cos * d, y: run.top + sin * d, r: BEAM_RADIUS }, 420, knock)
       }
     }
     run.activeMs = 460
@@ -694,6 +765,9 @@ const beam: AttackKind = {
 const summon: AttackKind = {
   begin(run, env) {
     run.dir = faceToward(env, env.player.position().x)
+  },
+  windup(run, env) {
+    if (!run.spec.heavy) lightPose(run, env, 'summon', 0)
   },
   fire(run, env) {
     const { body } = env
