@@ -82,7 +82,7 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
     <main className="page">
       <header className="top">
         <div className="brand">
-          <img src={mage} alt="" className="mage" width="56" height="56" />
+          <span className="mage" aria-hidden="true"><img src={mage} alt="" /></span>
           <h1 className="logo">ARC<span>ade</span></h1>
         </div>
         <div className="auth">

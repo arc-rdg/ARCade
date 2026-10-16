@@ -36,7 +36,9 @@ code { background: rgba(0, 0, 0, 0.07); padding: 0 0.25em; border-radius: 0.25em
 
 .top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .brand { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
-.mage { height: auto; width: clamp(3rem, 12vw, 4.5rem); image-rendering: auto; }
+/* The mage sits in a large transparent canvas; crop to the visible part (186x278 at 55,173 of 1448x1086). */
+.mage { position: relative; display: block; overflow: hidden; flex: none; height: clamp(4rem, 14vw, 6rem); aspect-ratio: 186 / 278; }
+.mage img { position: absolute; left: -29.57%; top: -62.23%; width: 778.5%; height: 390.6%; max-width: none; }
 
 .logo {
   margin: 0;

@@ -89,7 +89,12 @@ export class NoArcJsonError extends Error {
 export async function fetchCrate(session: Session, projectId: number, signal?: AbortSignal): Promise<string> {
   const response = await gitlabFetch(session, `projects/${projectId}/packages/generic/isa_arc_json/0.0.1/arc-ro-crate-metadata.json`, null, signal)
   if (response.status === 404) throw new NoArcJsonError()
-  if (!response.ok) throw new GitLabError(describe(response.status), response.status)
+  if (!response.ok) {
+    const message = !session.token && (response.status === 401 || response.status === 403)
+      ? 'This ARC is private. Log in to open it.'
+      : describe(response.status)
+    throw new GitLabError(message, response.status)
+  }
   return response.text()
 }
 
