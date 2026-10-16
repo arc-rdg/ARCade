@@ -51,6 +51,29 @@ describe('GitLab client', () => {
     expect((await source.search('', 2)).nextPage).toBeNull()
   })
 
+  it('fetches a public crate without the token', async () => {
+    const calls = mockFetch(() => new Response('{}', { status: 200 }))
+    await fetchCrate({ hub: DEFAULT_HUB, token: 'secret' }, 5)
+    expect(calls).toHaveLength(1)
+    expect(calls[0].headers.has('authorization')).toBe(false)
+  })
+
+  it('retries a hidden crate with the token', async () => {
+    const calls = mockFetch((_url, init) => new Response('{}', { status: new Headers(init.headers).has('authorization') ? 200 : 401 }))
+    await fetchCrate({ hub: DEFAULT_HUB, token: 'secret' }, 5)
+    expect(calls.map((c) => c.headers.get('authorization'))).toEqual([null, 'Bearer secret'])
+  })
+
+  it('drops an expired token and retries the search without it', async () => {
+    const onExpired = vi.fn()
+    const calls = mockFetch((_url, init) => new Response('[]', { status: new Headers(init.headers).has('authorization') ? 401 : 200 }))
+    await gitlabSource({ hub: DEFAULT_HUB, token: 'old' }, { onExpired }).search('', 1)
+    expect(onExpired).toHaveBeenCalledOnce()
+    expect(calls).toHaveLength(2)
+    expect(calls[1].headers.has('authorization')).toBe(false)
+    expect(calls[1].url.searchParams.get('visibility')).toBe('public')
+  })
+
   it('reports a missing ARC JSON on 404', async () => {
     mockFetch(() => new Response('{}', { status: 404 }))
     await expect(fetchCrate({ hub: DEFAULT_HUB, token: null }, 5)).rejects.toBeInstanceOf(NoArcJsonError)

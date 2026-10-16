@@ -11,6 +11,7 @@ interface Props {
 
 export function LoginDialog({ hub, onClose, onDone }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
+  const controller = useRef<AbortController | null>(null)
   const [token, setToken] = useState('')
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -19,6 +20,7 @@ export function LoginDialog({ hub, onClose, onDone }: Props) {
   useEffect(() => {
     const dialog = ref.current
     if (dialog && !dialog.open) dialog.showModal()
+    return () => controller.current?.abort()
   }, [])
 
   async function submit(event: FormEvent) {
@@ -27,12 +29,17 @@ export function LoginDialog({ hub, onClose, onDone }: Props) {
     if (!value) return
     setBusy(true)
     setError(null)
+    controller.current?.abort()
+    const ctl = new AbortController()
+    controller.current = ctl
     try {
-      await validateToken({ hub, token: value })
+      await validateToken({ hub, token: value }, ctl.signal)
+      if (ctl.signal.aborted) return
       saveToken(hub, value, remember)
       setToken('')
       onDone()
     } catch (e) {
+      if (ctl.signal.aborted) return
       setError(e instanceof Error ? e.message : 'The token could not be checked.')
     } finally {
       setBusy(false)
@@ -40,7 +47,7 @@ export function LoginDialog({ hub, onClose, onDone }: Props) {
   }
 
   return (
-    <dialog ref={ref} className="dialog" onClose={onClose} aria-labelledby="login-title">
+    <dialog ref={ref} className="dialog" onClose={() => { controller.current?.abort(); onClose() }} aria-labelledby="login-title">
       <form onSubmit={submit}>
         <h2 id="login-title">Log in to {hub.name}</h2>
         <p>
@@ -57,6 +64,7 @@ export function LoginDialog({ hub, onClose, onDone }: Props) {
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <span>Remember on this device</span>
         </label>
+        <p className="hint">Stored in this browser for arc-rdg.github.io. Use a token with read_api scope and an expiry date.</p>
         {error && <p className="notice error" role="alert">{error}</p>}
         <div className="actions">
           <button type="button" className="btn" onClick={() => ref.current?.close()}>Cancel</button>

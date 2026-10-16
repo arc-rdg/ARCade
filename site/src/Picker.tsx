@@ -11,6 +11,8 @@ interface Props {
   onHub: (hub: Hub) => void
   token: string | null
   onAuthChange: () => void
+  expired: boolean
+  onExpired: () => void
   navigate: (route: { view: 'sample' } | { view: 'arc'; hub: Hub; projectId: number }) => void
 }
 
@@ -27,12 +29,13 @@ function formatDate(iso: string | undefined): string {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
+export function Picker({ hub, onHub, token, onAuthChange, expired, onExpired, navigate }: Props) {
   const [input, setInput] = useState('')
   const [query, setQuery] = useState('')
   const [mine, setMine] = useState(false)
   const [data, setData] = useState<{ key: string; page: number; items: GitLabProject[]; nextPage: number | null } | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
+  const [retry, setRetry] = useState(0)
   const [login, setLogin] = useState(false)
 
   useEffect(() => {
@@ -41,7 +44,7 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
   }, [input])
 
   const session = useMemo(() => ({ hub, token }), [hub, token])
-  const source = useMemo(() => gitlabSource(session, { mine }), [session, mine])
+  const source = useMemo(() => gitlabSource(session, { mine, onExpired }), [session, mine, onExpired])
   const mineActive = mine && token !== null
 
   // A new query, hub, token or filter restarts at page 1; a page bump appends.
@@ -51,6 +54,7 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
   useEffect(() => {
     const ctl = new AbortController()
     source.search(query, pageNow, ctl.signal).then((result) => {
+      if (ctl.signal.aborted) return
       setFailure(null)
       setData((prev) => ({
         key,
@@ -63,7 +67,7 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
       setFailure({ key, message: e instanceof Error ? e.message : 'The search failed.' })
     })
     return () => ctl.abort()
-  }, [key, pageNow, source, query])
+  }, [key, pageNow, source, query, retry])
 
   const current = data?.key === key ? data : null
   const items = current?.items ?? []
@@ -94,6 +98,13 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
         </div>
       </header>
       <p className="lead">Pick an ARC and play its provenance as a game.</p>
+
+      {expired && !token && (
+        <p className="notice error" role="alert">
+          Your login expired. Log in again.{' '}
+          <button type="button" className="btn" onClick={() => setLogin(true)}>Log in</button>
+        </p>
+      )}
 
       <a className="sample" href={routeUrl({ view: 'sample' }, BASE)}
         onClick={(e) => { e.preventDefault(); navigate({ view: 'sample' }) }}>
@@ -144,7 +155,7 @@ export function Picker({ hub, onHub, token, onAuthChange, navigate }: Props) {
       </ul>
 
       {nextPage !== null && status === 'ready' && (
-        <button type="button" className="btn more" disabled={more} onClick={() => setPaging({ key, n: nextPage })}>
+        <button type="button" className="btn more" disabled={more} onClick={() => { setPaging({ key, n: nextPage }); setRetry((n) => n + 1) }}>
           {more ? 'Loading…' : 'Load more'}
         </button>
       )}

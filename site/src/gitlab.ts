@@ -54,21 +54,27 @@ export interface ArcSource {
   search(query: string, page: number, signal?: AbortSignal): Promise<Page<GitLabProject>>
 }
 
-export function gitlabSource(session: Session, options: { mine?: boolean } = {}): ArcSource {
-  return {
-    async search(query, page, signal) {
-      const params = new URLSearchParams({ order_by: 'last_activity_at', sort: 'desc', page: String(page), per_page: '20' })
-      if (query.trim()) params.set('search', query.trim())
-      if (session.token && options.mine) params.set('membership', 'true')
-      else if (!session.token) params.set('visibility', 'public')
-      const response = await gitlabFetch(session, 'projects', params, signal)
-      if (!response.ok) throw new GitLabError(describe(response.status), response.status)
-      const data: unknown = await response.json()
-      if (!Array.isArray(data) || !data.every(isProject)) throw new GitLabError('GitLab returned an unexpected answer.', response.status)
-      const next = Number(response.headers.get('x-next-page'))
-      return { items: data, nextPage: Number.isSafeInteger(next) && next > 0 ? next : null }
-    },
+export const EXPIRED_MESSAGE = 'Your login expired. Log in again.'
+
+export function gitlabSource(session: Session, options: { mine?: boolean; onExpired?: () => void } = {}): ArcSource {
+  async function run(token: string | null, query: string, page: number, signal?: AbortSignal): Promise<Page<GitLabProject>> {
+    const params = new URLSearchParams({ order_by: 'last_activity_at', sort: 'desc', page: String(page), per_page: '20' })
+    if (query.trim()) params.set('search', query.trim())
+    if (token && options.mine) params.set('membership', 'true')
+    else if (!token) params.set('visibility', 'public')
+    const response = await gitlabFetch({ hub: session.hub, token }, 'projects', params, signal)
+    if (response.status === 401 && token) {
+      // Expired or revoked: forget it and continue as a visitor.
+      options.onExpired?.()
+      return run(null, query, page, signal)
+    }
+    if (!response.ok) throw new GitLabError(describe(response.status), response.status)
+    const data: unknown = await response.json()
+    if (!Array.isArray(data) || !data.every(isProject)) throw new GitLabError('GitLab returned an unexpected answer.', response.status)
+    const next = Number(response.headers.get('x-next-page'))
+    return { items: data, nextPage: Number.isSafeInteger(next) && next > 0 ? next : null }
   }
+  return { search: (query, page, signal) => run(session.token, query, page, signal) }
 }
 
 function describe(status: number): string {
@@ -85,15 +91,26 @@ export class NoArcJsonError extends Error {
   }
 }
 
-/** The ARC JSON (RO-Crate) published by the hub's CI, read as text. */
-export async function fetchCrate(session: Session, projectId: number, signal?: AbortSignal): Promise<string> {
-  const response = await gitlabFetch(session, `projects/${projectId}/packages/generic/isa_arc_json/0.0.1/arc-ro-crate-metadata.json`, null, signal)
+/**
+ * The ARC JSON (RO-Crate) published by the hub's CI, read as text. It is requested without the token
+ * first, so public ARCs never send it through the S3 redirect; the token is only used on 401/403/404.
+ */
+export async function fetchCrate(session: Session, projectId: number, signal?: AbortSignal, onExpired?: () => void): Promise<string> {
+  const path = `projects/${projectId}/packages/generic/isa_arc_json/0.0.1/arc-ro-crate-metadata.json`
+  let response = await gitlabFetch({ hub: session.hub, token: null }, path, null, signal)
+  if (!response.ok && session.token && [401, 403, 404].includes(response.status)) {
+    response = await gitlabFetch(session, path, null, signal)
+    if (response.status === 401) {
+      onExpired?.()
+      throw new GitLabError(EXPIRED_MESSAGE, 401)
+    }
+  }
   if (response.status === 404) throw new NoArcJsonError()
   if (!response.ok) {
-    const message = !session.token && (response.status === 401 || response.status === 403)
-      ? 'This ARC is private. Log in to open it.'
-      : describe(response.status)
-    throw new GitLabError(message, response.status)
+    const hidden = !session.token && (response.status === 401 || response.status === 403)
+    throw new GitLabError(hidden
+      ? 'This ARC was not found, is private, or does not share its ARC JSON publicly. Log in if you have access.'
+      : describe(response.status), response.status)
   }
   return response.text()
 }
@@ -105,10 +122,10 @@ export async function fetchProject(session: Session, projectId: number, signal?:
   return isProject(data) ? data : null
 }
 
-export async function validateToken(session: Session, signal?: AbortSignal): Promise<string> {
-  const response = await gitlabFetch(session, 'user', null, signal)
+/** Checks that the token works for what the site needs: listing projects (needs read_api). */
+export async function validateToken(session: Session, signal?: AbortSignal): Promise<void> {
+  const response = await gitlabFetch(session, 'projects', new URLSearchParams({ per_page: '1', membership: 'true' }), signal)
   if (response.status === 401) throw new GitLabError('The token is invalid or expired.', 401)
+  if (response.status === 403) throw new GitLabError('The token needs the read_api scope.', 403)
   if (!response.ok) throw new GitLabError(describe(response.status), response.status)
-  const data = await response.json() as { username?: unknown }
-  return typeof data.username === 'string' ? data.username : ''
 }
