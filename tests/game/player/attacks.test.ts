@@ -112,7 +112,7 @@ describe('createAttackMachine', () => {
 
 describe('attack variants', () => {
   const air = move('air', 100, { plunge: { speed: 700 }, landingLockMs: 220, onLand: () => {} })
-  const dashLight = move('dashLight', 0, { keepsMomentum: true })
+  const dashLight = move('dashLight', 0)
   const dashHeavy = move('dashHeavy', 100, { lockMs: 150 })
   const upLight = move('upLight', 60)
   const upHeavy = move('upHeavy', 100)

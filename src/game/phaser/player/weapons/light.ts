@@ -9,12 +9,11 @@ import { NO_UP_LIGHT } from './variants'
 
 const LIGHT_TAGS = ['light']
 
-const lightTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number, lunge = 0): Timing => ({
+const lightTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number): Timing => ({
   startupMs,
   activeMs,
   recoveryMs,
   cancelAfterMs,
-  lunge,
   allowedInAir: true,
 })
 
@@ -183,10 +182,10 @@ export const scalpelMoveset: WeaponMoveset = {
     if (slot === 'heavy') return []
     const quick = { x: 70, y: -20 }
     return [
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175, 120), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175, 120), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175, 120), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel slash', lightTiming(115, 60, 280, 215, 200), stab(20, { x: 200, y: -120 }, 45), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
+      scalpelMove('Scalpel slash', lightTiming(115, 60, 280, 215), stab(20, { x: 200, y: -120 }, 45), tier),
     ]
   }),
 }
@@ -242,8 +241,8 @@ export const whipMoveset: WeaponMoveset = {
   moves: memoMoves((slot, tier) => {
     if (slot === 'heavy') return []
     return [
-      move('Whip lash', lightTiming(130, 75, 260, 185, 60), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(13, 130, 30, tier))),
-      move('Whip crack', lightTiming(150, 85, 320, 235, 100), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(17, 200, 45, tier))),
+      move('Whip lash', lightTiming(130, 75, 260, 185), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(13, 130, 30, tier))),
+      move('Whip crack', lightTiming(150, 85, 320, 235), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(17, 200, 45, tier))),
     ]
   }),
 }

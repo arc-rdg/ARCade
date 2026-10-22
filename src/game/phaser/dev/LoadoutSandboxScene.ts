@@ -343,7 +343,7 @@ function buildPanel(scene: Phaser.Scene, checked: Set<string>, tierTwo: Set<stri
   const hint = document.createElement('div')
   hint.style.cssText = 'margin-bottom:6px;opacity:.8'
   hint.textContent =
-    'Click the canvas first. WASD, Space, Shift, mouse buttons, Q E R F. Heavy in the air plunges, attacks during a dash are dash attacks, W + attack goes up.'
+    'Click the canvas first. WASD, Space, Shift, mouse buttons, Q E R F. Heavy after a held jump or a fall plunges, attacks during a dash are dash attacks, W + attack goes up.'
   root.append(stats, hint)
 
   const boxes = new Map<string, HTMLInputElement>()

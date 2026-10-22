@@ -79,8 +79,7 @@ export function createMoveLayer(core: Core): MoveLayer {
 
   // One box covers both sides, so an enemy that overlaps the middle is hit once. The combat world
   // mirrors knockback by the attacker's facing only, so every enemy flies the way the mage faces.
-  // It reaches as far ahead as the staff thrust, and the lunge closes the gap the knockback of the
-  // string's last hit opened.
+  // It reaches as far ahead as the staff thrust.
   const spin = (ctx: AttackContext) => {
     const scale = ctx.rangeScale
     const feet = ctx.player.position()
@@ -105,7 +104,6 @@ export function createMoveLayer(core: Core): MoveLayer {
     activeMs: 120,
     recoveryMs: 320,
     cancelAfterMs: 240,
-    lunge: 120,
     allowedInAir: true,
     spin: true,
     onActive: spin,

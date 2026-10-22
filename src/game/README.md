@@ -473,34 +473,38 @@ move's cancel window, and a press up to 250 ms after the move ended (`COMBO_GRAC
 the Triplicate finisher. Only one press waits at a time and later presses merge into it, so a
 mash stops at most one move after the last press. A longer pause, a heavy, a dash, a jump or a hit
 starts the string over.
-A move's lunge pushes the mage forward at the start of its active phase, for 60 ms (`LUNGE_MS` in
-`phaser/player/controls.ts`; the staff jab moves about 8 px), and only while left or right is held.
-Without a direction the attack stays in place on the ground and keeps the air speed in the air.
+Attacks never move the mage: it moves only with the keys. There are no lunges.
 On the ground a move runs the mage at half speed (`ATTACK_GROUND_SPEED`) through its startup, active
 phase and the recovery before its cancel window. Past `cancelAfterMs` the mage runs at full speed.
 A light move shows a pull-back in its startup: the weapon swings back to about -0.25 rad and 4 units
 behind the hand, formed in the first half of the startup (`phaser/player/weaponPose.ts`).
-A dash attack that keeps its momentum carries 60% of the dash speed through startup and active.
+A dash attack takes over from the dash and keeps none of its speed: the mage runs at the speed of the
+left or right key held at that moment, or stands still (`dashAttackStarted` in `model/input/motor.ts`).
 
 Heavy pressed in the air plays the weapon's air heavy, mostly a plunge with a landing hit and a
-short landing lock. The first hit of an air heavy (the fall or the landing ring) ends the plunge and
-bounces the mage up at 55% of the jump speed (about 30% of the jump height), free to steer and cancel at once.
+short landing lock (the downward attack). It needs an airtime that did not start from a hop: a jump
+let go before it was held 120 ms (`HOP_MAX_HOLD_MS`) is a hop, and until the next landing a heavy
+press in the air does nothing (it is dropped, not buffered, as a second air heavy is). A jump held
+longer, a fall (off a ledge, knockback, dropping through a plank) and an air jump all allow it. A heavy
+pressed on the very step a jump leaves the ground is dropped too. Up and dash heavies are other
+variants and stay free.
+The first hit of an air heavy (the fall or the landing ring) ends the plunge and bounces the mage up
+to a full jump's height (launch speed `JUMP_VELOCITY`), free to steer and cancel at once.
 Only one air heavy fits in one airtime: until the mage lands or is teleported, another
-heavy press in the air does nothing (up and dash heavies still play). The bounce continues that
-airtime, so it gives back no jump or air dash, not even when the landing ring bounced the mage off
-the floor (`startPlunge`, `plungeBounced` and `airHeavyRefused` in `model/input/motor.ts`).
-The Diminishing Returns card (`serialDilution`) lifts the one-per-airtime rule for air heavies that hit: after a bounce
-another air heavy may start, up to 5 per airtime (`PLUNGE_CHAIN_MAX`). The first bounce is a full
-jump high and each next one lower, 75%, 50%, 30% and 15% of it (`CHAIN_BOUNCE_HEIGHTS`,
-`bounceFactor`). The count (`plungeChain`) starts over on the same landing or teleport,
-and the bounces still give back no jump, air dash or coyote time.
+heavy press in the air does nothing. The bounce continues that airtime, so it gives back no jump or
+air dash, not even when the landing ring bounced the mage off the floor (`startPlunge`,
+`plungeBounced` and `airHeavyRefused` in `model/input/motor.ts`).
+The Diminishing Returns card (`serialDilution`, the pogo card) lifts the one-per-airtime rule: after a bounce
+another air heavy may start, up to 3 per airtime (`PLUNGE_CHAIN_MAX`), each bouncing to full jump height.
+The count (`plungeChain`) starts over on the same landing or teleport, and the bounces still
+give back no jump, air dash or coyote time.
 Attacks during a dash, or up to 80 ms after it, play the dash light (no lock) or the
 dash heavy. Attacks with up held play an overhead version, and ranged weapons keep aiming at the cursor.
 When an attack starts (every light, heavy and variant, and each hit of a combo), the mage turns to the
 side of the cursor if the pointer moved or a mouse button went down in the last 10 s (`AIM_RECENT_MS`;
 a cursor within 6 units of the mage, `AIM_DEAD_ZONE`, changes nothing). So you can swing one way
 while walking the other. Facing stays locked until the move ends, also once the cancel window lets
-the held direction through, and movement stays free. Lunges push towards the facing. Without a recent pointer, and for the trader AI, which sends no
+the held direction through, and movement stays free. Without a recent pointer, and for the trader AI, which sends no
 aim, the held direction decides as before (`aimFacing` in `model/input/motor.ts`, `faceCursor` in
 `phaser/player/controls.ts`, called from the attack start in `Player.ts`). Abilities do not turn the mage.
 The input layer reads the cursor from its own DOM listeners (`phaser/input/InputLayer.ts`), because
@@ -705,7 +709,7 @@ Click the canvas to give it keyboard focus.
 | What | Where |
 |---|---|
 | Run, jump, dash, coyote time, jump buffer | `model/input/motor.ts` (`MOTOR`) |
-| Air heavy bounce and Diminishing Returns chain heights | `model/input/motor.ts` (`PLUNGE_BOUNCE_FACTOR`, `CHAIN_BOUNCE_HEIGHTS`) |
+| Hop limit for the air heavy, Diminishing Returns plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
 | Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |
 | Mob wind-up poses, ranged lead, contact cap, back-away and dive rules | `phaser/mobs/windup.ts`, `phaser/mobs/weaponPose.ts` |
@@ -740,7 +744,7 @@ Click the canvas to give it keyboard focus.
 | Boss freeze and slow rules | `phaser/combat/status.ts` |
 | Boss portal timeline (forming time, flash, sparks) | `phaser/scenes/portalSpawn.ts` |
 | Player i-frames and flinch | `phaser/player/Player.ts` |
-| Presses carried through the end of a flinch or stun (120 ms), attack lunge, ground attack speed | `phaser/player/controls.ts` (`CARRY_WINDOW_MS`, `LUNGE_MS`, `ATTACK_GROUND_SPEED`) |
+| Presses carried through the end of a flinch or stun (120 ms), ground attack speed | `phaser/player/controls.ts` (`CARRY_WINDOW_MS`, `ATTACK_GROUND_SPEED`) |
 | Hit-stop, cut short by a dash or jump press | `phaser/combat/hitStop.ts` |
 | Pit damage, banner time, mob wake distance, monster prewarm rate | `phaser/scenes/StretchScene.ts` |
 | Level layout | `phaser/scenes/levelGen.ts` |

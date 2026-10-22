@@ -28,12 +28,11 @@ import { NO_UP_HEAVY } from './variants'
 
 const HEAVY_TAGS = ['heavy']
 
-const heavyTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number, lunge = 0): Timing => ({
+const heavyTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number): Timing => ({
   startupMs,
   activeMs,
   recoveryMs,
   cancelAfterMs,
-  lunge,
   allowedInAir: false,
 })
 
@@ -118,7 +117,7 @@ function orbit(tier: 1 | 2): AttackMove {
   const damage = tier === 2 ? 9 : 7
   return move(
     'Orbit',
-    variantTiming(60, 80, 200, 120, { keepsMomentum: true }),
+    variantTiming(60, 80, 200, 120),
     (ctx) => {
       orbitVisual(ctx.scene, ctx.art).show(ctx.player, ORBIT_MS, tier === 2 ? 2 : 1, 34)
       const ring = () =>
@@ -206,7 +205,7 @@ function pendulum(tier: 1 | 2): AttackMove {
   const hit: MeleeHit = { x: -6, y: -80, w: 64, h: 80, damage: tier === 2 ? 36 : 30, knockback: { x: 140, y: -520 }, hitStopMs: 90, tags: HEAVY_TAGS }
   return move(
     'Pendulum',
-    variantTiming(110, 140, 300, 220, { keepsMomentum: true, lockMs: 300 }),
+    variantTiming(110, 140, 300, 220, { lockMs: 300 }),
     (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), hit),
     { damage: hit.damage },
   )
@@ -251,7 +250,7 @@ export const beakerMoveset: WeaponMoveset = {
     return [
       move(
         'Beaker smash',
-        heavyTiming(340, 120, 360, 240, 60),
+        heavyTiming(340, 120, 360, 240),
         (ctx, self) => {
           spawnMelee(ctx, activeMs(ctx, self), smash)
           spawnShockwaves(ctx, wave)
@@ -493,7 +492,7 @@ function shieldCharge(tier: 1 | 2): AttackMove {
   const hit: MeleeHit = { x: 0, y: -46, w: 34, h: 48, damage: tier === 2 ? 34 : 26, knockback: { x: 360, y: -140 }, hitStopMs: 60, tags: ['heavy', 'bash'] }
   return move(
     'Shield Charge',
-    variantTiming(50, 260, 240, 190, { keepsMomentum: true, lockMs: 150 }),
+    variantTiming(50, 260, 240, 190, { lockMs: 150 }),
     (ctx, self) => {
       const duration = activeMs(ctx, self)
       reflectStance(ctx, duration)

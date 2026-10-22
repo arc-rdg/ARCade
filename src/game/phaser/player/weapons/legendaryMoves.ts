@@ -13,21 +13,19 @@ import { NO_UP_LIGHT } from './variants'
 // published statue and the marks over the enemies) live in legendaryFeature.ts and find the hits
 // by their tags.
 
-const lightTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number, lunge = 0): Timing => ({
+const lightTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number): Timing => ({
   startupMs,
   activeMs,
   recoveryMs,
   cancelAfterMs,
-  lunge,
   allowedInAir: true,
 })
 
-const heavyTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number, lunge = 0): Timing => ({
+const heavyTiming = (startupMs: number, activeMs: number, recoveryMs: number, cancelAfterMs: number): Timing => ({
   startupMs,
   activeMs,
   recoveryMs,
   cancelAfterMs,
-  lunge,
   allowedInAir: false,
 })
 
@@ -250,7 +248,7 @@ export const pressMoveset: WeaponMoveset = {
     return [
       move(
         'Publish',
-        heavyTiming(320, 100, 380, 260, 40),
+        heavyTiming(320, 100, 380, 260),
         (ctx, self) => {
           spawnMelee(ctx, activeMs(ctx, self), PRESS)
           publish(ctx)

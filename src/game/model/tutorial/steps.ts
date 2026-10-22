@@ -130,7 +130,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     id: 'variants',
     title: 'Attack variants',
     ticks: 3,
-    lines: (k) => [`${k('up')} + attack hits overhead`, `${k('heavy')} in the air slams down`, 'Attack while dashing'],
+    lines: (k) => [`${k('up')} + attack hits overhead`, `Hold ${k('jump')}, then ${k('heavy')} in the air`, 'Attack while dashing'],
     tick: (fact) => {
       if (fact.kind !== 'attackStarted') return NONE
       return fact.variant === 'up' ? 0 : fact.variant === 'air' ? 1 : fact.variant === 'dash' ? 2 : NONE

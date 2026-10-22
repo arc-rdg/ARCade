@@ -38,7 +38,7 @@ describe('weapon movesets', () => {
 
   it('gives a legendary weapon the same moves at both tiers, so it has one form', () => {
     for (const set of LEGENDARY_MOVESETS) {
-      const timing = (tier: 1 | 2, slot: 'light' | 'heavy') => set.moves(slot, tier).map(({ name, startupMs, activeMs, recoveryMs, cancelAfterMs, lunge }) => ({ name, startupMs, activeMs, recoveryMs, cancelAfterMs, lunge }))
+      const timing = (tier: 1 | 2, slot: 'light' | 'heavy') => set.moves(slot, tier).map(({ name, startupMs, activeMs, recoveryMs, cancelAfterMs }) => ({ name, startupMs, activeMs, recoveryMs, cancelAfterMs }))
       for (const slot of ['light', 'heavy'] as const) expect(timing(1, slot), set.id).toEqual(timing(2, slot))
     }
   })

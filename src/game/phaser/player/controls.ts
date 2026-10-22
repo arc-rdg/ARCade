@@ -1,4 +1,4 @@
-import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyRefused, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
+import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyRefused, availableJump, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { AttackInfo, AttackMachine, AttackStepEnv } from './attacks'
 
@@ -9,18 +9,8 @@ export const DASH_ATTACK_GRACE_MS = 80
 export const ATTACK_GROUND_SPEED = 0.5
 // A jump, dash or attack pressed in the last stretch of a flinch or stun fires on the first free step.
 export const CARRY_WINDOW_MS = 120
-// How long a move's lunge pushes at the start of its active phase.
-export const LUNGE_MS = 60
 
 const NO_HELD: ReadonlySet<string> = new Set()
-
-// The horizontal speed a move's lunge leaves the mage with. The lunge pushes only while left or right
-// is held, so an attack without a direction stays in place: on the ground it stops a walk, in the
-// air it keeps the air speed. The lunge never slows a mage who already runs faster that way.
-export function lungeVelocity(lunge: number, facing: 1 | -1, leftHeld: boolean, rightHeld: boolean, grounded: boolean, vx: number): number {
-  if (leftHeld !== rightHeld) return facing * Math.max(lunge, facing * vx)
-  return grounded ? 0 : vx
-}
 
 export interface ControlPresses {
   light: boolean
@@ -72,9 +62,6 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
   const mergedPresses: ControlPresses = { light: false, heavy: false, up: false }
   let carriedLight = false
   let carriedHeavy = false
-  let lungeMs = 0
-  let lungeSeen: Readonly<AttackInfo> | null = null
-  let wasActive = false
   // The attack started towards a recently used cursor, so its facing holds until the move ends.
   let aimed = false
 
@@ -118,9 +105,16 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       attackEnv.holdBuffer = dashRuns
       attackEnv.up = presses.up
       attackPressed.light = controllable && !attacksBlocked && presses.light
-      // A second air heavy before landing is dropped, not buffered, so it cannot slam on the landing.
+      // An air heavy that is not allowed (a second one, or after a hop) is dropped, not buffered, so it
+      // cannot slam on the landing. Pressed with the jump off the ground it is not allowed either,
+      // as the hop is not yet known to be long.
+      const jumpingOff = move === 'jump' && availableJump(motor, motorEnv) === 'ground'
       attackPressed.heavy =
-        controllable && !attacksBlocked && presses.heavy && !airHeavyRefused(motor, !attackEnv.grounded, presses.up, attackEnv.dashing)
+        controllable &&
+        !attacksBlocked &&
+        presses.heavy &&
+        !jumpingOff &&
+        !airHeavyRefused(motor, !attackEnv.grounded, presses.up, attackEnv.dashing)
       attacks.step(dtMs, attackPressed, attackEnv)
       const current = attacks.current()
       if (current !== seen) {
@@ -147,20 +141,6 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       if (phase === 'idle') aimed = false
       else if ((aimed || !attacks.canCancel()) && !motor.dashed && !motor.jumped) motor.facing = facing
 
-      // The lunge starts with the active phase. A single set would be gone after a few steps of
-      // ground friction, so it pushes for LUNGE_MS.
-      const active = phase === 'active'
-      if (active && !wasActive && current?.move.lunge) {
-        lungeMs = LUNGE_MS
-        lungeSeen = current
-      }
-      wasActive = active
-      if (lungeMs > 0) {
-        if (active && current === lungeSeen && current?.move.lunge && motor.dashMs <= 0) {
-          motor.vx = lungeVelocity(current.move.lunge, motor.facing, input.held.has('left'), input.held.has('right'), grounded, motor.vx)
-          lungeMs -= dtMs
-        } else lungeMs = 0
-      }
       if (motor.dashMs > 0) sinceDashMs = 0
       else sinceDashMs += dtMs
     },

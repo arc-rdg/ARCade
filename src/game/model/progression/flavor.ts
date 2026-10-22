@@ -37,7 +37,7 @@ export const FLAVOR: Record<string, string> = {
   'mechanic.citationNeeded': 'A bold claim deserves a closer look.',
   'mechanic.autoclave': 'Unauthorised access denied, with force.',
   'mechanic.secondWind': 'Good thing someone kept a copy.',
-  'mechanic.serialDilution': 'Each bounce a little smaller than the last, exactly as the grant report predicted.',
+  'mechanic.serialDilution': 'Three bounces and no landing. The grant report calls this sustainable.',
   'legendary.theOntology': 'Everything is tagged, even the coffee mug.',
   'legendary.gitRevert': 'Undo that last experiment, quietly.',
   'legendary.doiExcalibur': 'Pulled from a stone, citable forever.',

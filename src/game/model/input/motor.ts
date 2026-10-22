@@ -25,14 +25,12 @@ export const MOTOR = {
 // v = sqrt(2 g h) gives the apex height without the small extra from the apex hang.
 export const JUMP_VELOCITY = Math.sqrt(2 * MOTOR.gravity * MOTOR.jumpHeightTiles * TILE)
 
-// The bounce after an air heavy hit launches at this share of a jump's speed. Height scales with
-// the square, so the peak is 0.55^2 = about 30% of a full jump (3.5 tiles), roughly 1 tile.
-export const PLUNGE_BOUNCE_FACTOR = 0.55
-// Serial Dilution: bounce heights of a chain as shares of a full jump's height, one per air heavy
-// of the airtime. The first is a full jump, so two or three plunges chain easily, four or five
-// take a quick hand, and a sixth is refused (PLUNGE_CHAIN_MAX).
-export const CHAIN_BOUNCE_HEIGHTS: readonly number[] = [1, 0.75, 0.5, 0.3, 0.15]
-export const PLUNGE_CHAIN_MAX = CHAIN_BOUNCE_HEIGHTS.length
+// Air heavies that may hit in one airtime with the Diminishing Returns card. Each bounce is a full
+// jump high. Without the card the first bounce ends the plunges until the next landing.
+export const PLUNGE_CHAIN_MAX = 3
+// A jump released before it was held this long is a hop: the cut applied early and the mage gets no
+// air heavy until the next landing. Held this long it is about 2 tiles high, enough to fall from.
+export const HOP_MAX_HOLD_MS = 120
 
 export type MotorAction = 'left' | 'right' | 'down' | 'jump' | 'dash'
 
@@ -69,6 +67,10 @@ export interface MotorState {
   airDashUsed: boolean
   // True from a jump until jump is released, for the apex hang and the jump cut.
   jumpHeld: boolean
+  // How long jump has been held since the jump started, and whether it was let go before
+  // HOP_MAX_HOLD_MS. A hop refuses the air heavy until the next landing.
+  jumpHeldMs: number
+  hopped: boolean
   // An air heavy started in this airtime, so no other may start before the mage lands
   // or is teleported. The jumpsUsed and airDashUsed it started with come back after its bounce.
   plungeUsed: boolean
@@ -98,6 +100,8 @@ export function createMotorState(facing: 1 | -1 = 1): MotorState {
     jumpsUsed: 0,
     airDashUsed: false,
     jumpHeld: false,
+    jumpHeldMs: 0,
+    hopped: false,
     plungeUsed: false,
     plungeJumpsUsed: 0,
     plungeAirDashUsed: false,
@@ -158,6 +162,14 @@ export function moveStarts(state: MotorState, input: MotorInput, env: MotorEnv, 
   return probeState.jumped ? 'jump' : null
 }
 
+// A dash attack took over from the dash. It keeps none of the dash speed: the mage runs at the speed
+// of the left or right key held now, or stands still without one.
+export function dashAttackStarted(state: MotorState, held: ReadonlySet<string>, env: MotorEnv): void {
+  const dir = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0)
+  state.vx = dir * runSpeed(env)
+  state.dashMs = 0
+}
+
 // An air heavy started. Call once per air heavy.
 export function startPlunge(state: MotorState): void {
   state.plungeUsed = true
@@ -167,33 +179,25 @@ export function startPlunge(state: MotorState): void {
   state.plungeLink = state.plungeChain
 }
 
-// The share of a jump's launch speed the bounce after air heavy number `link` of an airtime gets.
-// Without Serial Dilution (`chains`) every bounce is the small one.
-export function bounceFactor(link: number, chains: boolean): number {
-  if (!chains) return PLUNGE_BOUNCE_FACTOR
-  const index = Math.min(PLUNGE_CHAIN_MAX, Math.max(1, link)) - 1
-  return Math.sqrt(CHAIN_BOUNCE_HEIGHTS[index])
-}
-
-// The air heavy bounced the mage up. Returns the bounce's share of the jump speed, and the caller
-// sets the velocity. The bounce continues the airtime the plunge started in, also when the landing
-// ring bounced it off the floor: the jumps and the air dash are as they were before the plunge and
-// the coyote time of that landing is gone. Without Serial Dilution no second air heavy may start
-// before the next landing. With it (`chains`) the next one may, up to PLUNGE_CHAIN_MAX per airtime.
-export function plungeBounced(state: MotorState, chains = false): number {
+// The air heavy bounced the mage up, and the caller sets the velocity to a full jump's. The bounce
+// continues the airtime the plunge started in, also when the landing ring bounced it off the floor:
+// the jumps and the air dash are as they were before the plunge and the coyote time of that
+// landing is gone. Without Diminishing Returns no second air heavy may start before the next
+// landing. With it (`chains`) the next one may, up to PLUNGE_CHAIN_MAX per airtime.
+export function plungeBounced(state: MotorState, chains = false): void {
   state.plungeChain = state.plungeLink
   state.plungeUsed = !chains || state.plungeChain >= PLUNGE_CHAIN_MAX
   state.jumpsUsed = state.plungeJumpsUsed
   state.airDashUsed = state.plungeAirDashUsed
   state.coyoteMs = 0
   state.jumpHeld = false
-  return bounceFactor(state.plungeLink, chains)
+  state.hopped = false
 }
 
-// A plain heavy press in the air plays the air heavy, which only one may do per airtime. Up and dash
-// heavies are other variants and stay free.
+// A plain heavy press in the air plays the air heavy, which only one may do per airtime and not
+// after a hop. The press then does nothing. Up and dash heavies are other variants and stay free.
 export function airHeavyRefused(state: MotorState, airborne: boolean, up: boolean, dashing: boolean): boolean {
-  return state.plungeUsed && airborne && !up && !dashing
+  return (state.plungeUsed || state.hopped) && airborne && !up && !dashing
 }
 
 // The pointer counts as in use for this long after it last moved or a mouse button went down. The
@@ -236,6 +240,7 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
     s.airDashUsed = false
     s.plungeUsed = false
     s.plungeChain = 0
+    s.hopped = false
     if (s.vy > 0) s.vy = 0
   } else {
     s.coyoteMs = Math.max(0, s.coyoteMs - dtMs)
@@ -269,6 +274,9 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
       s.jumpBufferMs = 0
       s.coyoteMs = 0
       s.jumpHeld = true
+      // Only a jump off the ground can be a hop. An air jump adds height to an airtime already there.
+      s.jumpHeldMs = kind === 'ground' ? 0 : HOP_MAX_HOLD_MS
+      s.hopped = false
       s.jumped = true
       if (s.dashMs > 0) {
         s.dashMs = 0
@@ -281,8 +289,9 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
 
   if (s.jumpHeld && !input.held.has('jump')) {
     if (s.vy < 0) s.vy *= MOTOR.jumpCut
+    if (s.jumpHeldMs < HOP_MAX_HOLD_MS) s.hopped = true
     s.jumpHeld = false
-  }
+  } else if (s.jumpHeld) s.jumpHeldMs += dtMs
 
   if (s.dashMs > 0) {
     s.vx = s.dashDir * run * MOTOR.dashSpeedFactor

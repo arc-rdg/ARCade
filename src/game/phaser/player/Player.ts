@@ -6,7 +6,7 @@ import type { Action, InputFrame } from '../../contracts/input'
 import type { AbilityHandler, AttackContext, PlayerEvents, PlayerHandle, WeaponMoveset } from '../../contracts/player'
 import type { PlayerBuild, PlayerWeaponId, WeaponSlot } from '../../contracts/progression'
 import { CORRUPTION } from '../../model/progression/corrupted'
-import { JUMP_VELOCITY, MOTOR, createMotorState, plungeBounced, runSpeed } from '../../model/input/motor'
+import { JUMP_VELOCITY, MOTOR, createMotorState, dashAttackStarted, plungeBounced, runSpeed } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { InputLayer } from '../input/InputLayer'
 import { applySpriteRef } from '../art'
@@ -22,8 +22,6 @@ import { airHeavyOf, dashHeavyOf, dashLightOf, upHeavyOf, upLightOf } from './we
 export const PLAYER_HURTBOX = { width: 18, height: 42 }
 const DAMAGE_IFRAMES_MS = 700
 const FLINCH_MS = 180
-// The share of the dash speed a dash attack carries through its startup and active phases.
-const DASH_ATTACK_MOMENTUM = 0.6
 // The longest a freeze holds the mage, as a stun.
 const PLAYER_FREEZE_MS = 600
 const DROP_THROUGH_MS = 150
@@ -168,8 +166,6 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   }
   // The held set of the step an attack started in, kept past the step for attackStarted listeners.
   const attackHeld = new Set<Action>()
-  // The dash speed a dash attack with keepsMomentum carries, 0 for any other attack.
-  let momentumVx = 0
   let lockShown = false
   let dust: Phaser.GameObjects.Sprite | null = null
 
@@ -269,13 +265,9 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       controls.faceCursor(aim.x - body.center.x, aim.recent === true)
       attackHeld.clear()
       for (const action of held) attackHeld.add(action)
-      momentumVx = 0
       if (variant === 'dash') {
         // The attack takes over from the dash. Its iframes run out on their own timer.
-        const speed = runSpeed(motorEnv)
-        if (move.keepsMomentum) momentumVx = motor.dashDir * speed * MOTOR.dashSpeedFactor * DASH_ATTACK_MOMENTUM
-        else motor.vx = motor.dashDir * speed
-        motor.dashMs = 0
+        dashAttackStarted(motor, held, motorEnv)
         controls.endDashGrace()
       }
       emit('attackStarted', { slot, comboIndex, move, held: attackHeld, variant })
@@ -292,8 +284,8 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
 
   const controls = createControls(motor, motorEnv, attacks)
 
-  // Velocity the current move takes over from the motor: a plunge falls straight, a dash attack
-  // keeps the dash speed, a hover holds the fall.
+  // Velocity the current move takes over from the motor: a plunge falls straight, a hover holds
+  // the fall.
   const steerAttack = () => {
     const attack = attacks.current()
     if (!attack) return
@@ -305,11 +297,6 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       return
     }
     if (phase !== 'startup' && phase !== 'active') return
-    if (momentumVx !== 0) {
-      motor.vx = momentumVx
-      // An air dash stays level, as the dash itself does.
-      if (!grounded) motor.vy = 0
-    }
     if (move.hover && motor.vy > HOVER_FALL_SPEED && attacks.moveElapsedMs() < move.hover.ms / build.stats.attackSpeed) {
       motor.vy = HOVER_FALL_SPEED
     }
@@ -680,13 +667,13 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     teleport(tx, ty) {
       // A plunge that fell into a pit must not slam at the respawn point.
       attacks.cancel()
-      momentumVx = 0
       body.reset(tx - W / 2, ty - H)
       motor.vx = 0
       motor.vy = 0
       motor.dashMs = 0
       motor.plungeUsed = false
       motor.plungeChain = 0
+      motor.hopped = false
       grounded = false
       container.setPosition(tx, ty)
     },
@@ -753,9 +740,9 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   // motor, so a bounce during hit-stop applies when the freeze ends.
   const stopBounceListener = deps.combat.on('hit', (event) => {
     if (event.attacker !== handle || destroyed || !attacks.onOwnHit()) return
-    // Serial Dilution chains the air heavies, each bounce lower than the one before.
-    const factor = plungeBounced(motor, build.mechanics.includes('serialDilution'))
-    handle.setVelocity(motor.vx, -JUMP_VELOCITY * factor)
+    // The bounce is a full jump high. Diminishing Returns allows up to PLUNGE_CHAIN_MAX plunges.
+    plungeBounced(motor, build.mechanics.includes('serialDilution'))
+    handle.setVelocity(motor.vx, -JUMP_VELOCITY)
     squashX = 0.82
     squashY = 1.2
     puffDust()

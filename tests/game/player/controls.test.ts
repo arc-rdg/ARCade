@@ -3,28 +3,29 @@ import { STEP_MS } from '../../../src/game/contracts/constants'
 import type { Action } from '../../../src/game/contracts/input'
 import type { AttackMove, AttackVariant } from '../../../src/game/contracts/player'
 import {
-  CHAIN_BOUNCE_HEIGHTS,
+  HOP_MAX_HOLD_MS,
   JUMP_VELOCITY,
   MOTOR,
-  PLUNGE_BOUNCE_FACTOR,
+  PLUNGE_CHAIN_MAX,
   availableJump,
-  bounceFactor,
   createMotorState,
+  dashAttackStarted,
   plungeBounced,
+  runSpeed,
 } from '../../../src/game/model/input/motor'
 import type { MotorEnv } from '../../../src/game/model/input/motor'
 import { createAttackMachine } from '../../../src/game/phaser/player/attacks'
 import { AIM_DEAD_ZONE, aimFacing } from '../../../src/game/model/input/motor'
-import { ATTACK_GROUND_SPEED, LUNGE_MS, createControls, lungeVelocity } from '../../../src/game/phaser/player/controls'
+import { createControls } from '../../../src/game/phaser/player/controls'
 
 function move(name: string, timing: Partial<AttackMove>): AttackMove {
   return { name, startupMs: 60, activeMs: 80, recoveryMs: 140, cancelAfterMs: 60, allowedInAir: true, onActive: () => {}, ...timing }
 }
 
 // Staff-like timings: a quick jab combo and a slow slam that locks.
-const LIGHT = [move('jab', { lunge: 140 }), move('jab', {}), move('thrust', { startupMs: 80, activeMs: 90, recoveryMs: 220, cancelAfterMs: 130 })]
+const LIGHT = [move('jab', {}), move('jab', {}), move('thrust', { startupMs: 80, activeMs: 90, recoveryMs: 220, cancelAfterMs: 130 })]
 const HEAVY = [move('slam', { startupMs: 280, activeMs: 120, recoveryMs: 320, cancelAfterMs: 200, allowedInAir: false, lockMs: 150 })]
-const DASH_LIGHT = move('lunge', { startupMs: 40, activeMs: 90, recoveryMs: 120, cancelAfterMs: 0, keepsMomentum: true })
+const DASH_LIGHT = move('lunge', { startupMs: 40, activeMs: 90, recoveryMs: 120, cancelAfterMs: 0 })
 const DASH_HEAVY = move('comet', { startupMs: 70, activeMs: 160, recoveryMs: 220, cancelAfterMs: 150, lockMs: 150 })
 const AIR_HEAVY = move('meteor', { startupMs: 90, activeMs: 0, recoveryMs: 220, cancelAfterMs: 160, landingLockMs: 220, plunge: { speed: 700 } })
 
@@ -52,7 +53,7 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
       controls.faceCursor(cursor.dx, cursor.recent)
       started.push({ name: m.name, variant })
       if (variant === 'dash') {
-        motor.dashMs = 0
+        dashAttackStarted(motor, new Set(heldKeys), motorEnv)
         controls.endDashGrace()
       }
     },
@@ -86,13 +87,26 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   }
   // A step while hurt: the mage cannot act for another `controlInMs`.
   const hurtStep = (controlInMs: number, pressed: Action[] = []) => stepWith(pressed, false, false, controlInMs)
-  // What Player does when the first hit of an air heavy lands. `chains` is Serial Dilution.
+  // What Player does when the first hit of an air heavy lands. `chains` is the pogo card.
   const bounce = (chains = false) => {
     if (!attacks.onOwnHit()) return false
-    motor.vy = -JUMP_VELOCITY * plungeBounced(motor, chains)
+    plungeBounced(motor, chains)
+    motor.vy = -JUMP_VELOCITY
     return true
   }
-  return { motor, motorEnv, attacks, started, cursor, step, wait, hold, hurtStep, bounce, x: () => x, airborne: () => y < 0 }
+  // The mage is in the air without a jump, as after walking off a ledge.
+  const lift = (height: number) => {
+    y = -height
+    motor.coyoteMs = 0
+  }
+  // Holds jump for `holdMs`, then lets go. The default is a full jump.
+  const longJump = (holdMs = 150) => {
+    hold('jump')
+    step(['jump'])
+    wait(holdMs)
+    hold()
+  }
+  return { motor, motorEnv, attacks, started, cursor, step, wait, hold, hurtStep, bounce, lift, longJump, x: () => x, y: () => y, airborne: () => y < 0 }
 }
 
 describe('createControls', () => {
@@ -190,12 +204,12 @@ describe('createControls', () => {
     expect(started).toEqual([{ name: 'comet', variant: 'dash' }])
   })
 
-  it('plays the air variant for an attack pressed with the jump', () => {
+  it('drops a heavy pressed on the step a jump leaves the ground', () => {
     const { motor, started, step, wait } = setup()
     step(['jump', 'heavy'])
     expect(motor.jumped).toBe(true)
-    wait(2 * STEP_MS)
-    expect(started).toEqual([{ name: 'meteor', variant: 'air' }])
+    wait(300)
+    expect(started).toEqual([])
   })
 
   it('never leaves the mage unable to act while presses are spammed', () => {
@@ -229,9 +243,8 @@ describe('createControls', () => {
     const meteors = (started: { name: string }[]) => started.filter((s) => s.name === 'meteor').length
 
     it('refuses a second air heavy after the bounce until the mage lands', () => {
-      const { started, step, wait, bounce, airborne } = setup()
-      step(['jump'])
-      wait(150)
+      const { started, step, wait, bounce, airborne, longJump } = setup()
+      longJump()
       step(['heavy'])
       // Startup ends, the fall hits an enemy.
       wait(100)
@@ -248,24 +261,21 @@ describe('createControls', () => {
     })
 
     it('allows the air heavy again after landing', () => {
-      const { started, step, wait, bounce, airborne } = setup()
-      step(['jump'])
-      wait(150)
+      const { started, step, wait, bounce, airborne, longJump } = setup()
+      longJump()
       step(['heavy'])
       wait(100)
       bounce()
       wait(800)
       expect(airborne()).toBe(false)
-      step(['jump'])
-      wait(150)
+      longJump()
       step(['heavy'])
       expect(meteors(started)).toBe(2)
     })
 
     it('does not give back a used double jump', () => {
-      const { motor, motorEnv, step, wait, bounce } = setup({ doubleJump: true })
-      step(['jump'])
-      wait(150)
+      const { motor, motorEnv, step, wait, bounce, longJump } = setup({ doubleJump: true })
+      longJump()
       step(['jump'])
       expect(motor.jumpsUsed).toBe(2)
       wait(100)
@@ -277,9 +287,8 @@ describe('createControls', () => {
     })
 
     it('gives no jump off the floor when the landing ring bounces the mage', () => {
-      const { motor, motorEnv, step, wait, bounce, airborne } = setup()
-      step(['jump'])
-      wait(150)
+      const { motor, motorEnv, step, wait, bounce, airborne, longJump } = setup()
+      longJump()
       step(['heavy'])
       // Falls at 700 per second, lands well within this, and the ring hits right after.
       for (let n = 0; n < 100 && airborne(); n++) wait(10)
@@ -296,74 +305,209 @@ describe('createControls', () => {
   })
 })
 
-describe('Serial Dilution', () => {
-  const meteors = (started: { name: string }[]) => started.filter((s) => s.name === 'meteor').length
+const meteors = (started: { name: string }[]) => started.filter((s) => s.name === 'meteor').length
 
-  // Jumps, then plunges and bounces `count` times. Each plunge hits 100 ms after the press and
-  // the next press comes 150 ms into the bounce, well before its peak.
-  function chain(count: number, chains: boolean) {
-    const rig = setup()
-    rig.step(['jump'])
-    rig.wait(150)
-    for (let i = 0; i < count; i++) {
-      rig.step(['heavy'])
-      rig.wait(100)
-      rig.bounce(chains)
-      rig.wait(150)
-    }
-    return rig
-  }
-
-  it('lets a plunge that hit start another one before landing', () => {
-    const { started, step, airborne } = chain(1, true)
+describe('downward attack', () => {
+  it('is refused after a hop', () => {
+    const { started, step, wait, airborne, longJump } = setup()
+    longJump(30)
+    wait(60)
     expect(airborne()).toBe(true)
     step(['heavy'])
-    expect(meteors(started)).toBe(2)
+    wait(100)
+    expect(meteors(started)).toBe(0)
   })
 
-  it('keeps one air heavy per airtime without the card', () => {
-    const { started, step, wait, airborne } = chain(1, false)
+  it('is refused after a hop even when jump was held almost long enough', () => {
+    const { started, step, wait, longJump } = setup()
+    longJump(HOP_MAX_HOLD_MS - 3 * STEP_MS)
+    wait(60)
+    step(['heavy'])
+    wait(100)
+    expect(meteors(started)).toBe(0)
+  })
+
+  it('plays after a held jump, also while jump is still held', () => {
+    const held = setup()
+    held.longJump()
+    held.step(['heavy'])
+    expect(held.started).toEqual([{ name: 'meteor', variant: 'air' }])
+
+    const holding = setup()
+    holding.hold('jump')
+    holding.step(['jump'])
+    holding.wait(60)
+    holding.step(['heavy'])
+    expect(meteors(holding.started)).toBe(1)
+  })
+
+  it('plays after walking off a ledge', () => {
+    const { started, step, wait, lift, airborne } = setup()
+    lift(40)
+    expect(airborne()).toBe(true)
+    step(['heavy'])
+    wait(100)
+    expect(meteors(started)).toBe(1)
+  })
+
+  it('counts a double jump as height even after a hop', () => {
+    const { started, step, wait, longJump } = setup({ doubleJump: true })
+    longJump(30)
+    wait(60)
+    step(['jump'])
+    wait(100)
+    step(['heavy'])
+    expect(meteors(started)).toBe(1)
+  })
+
+  it('is allowed again after landing from a hop', () => {
+    const { started, step, wait, longJump, airborne } = setup()
+    longJump(30)
+    wait(800)
+    expect(airborne()).toBe(false)
+    longJump()
+    step(['heavy'])
+    expect(meteors(started)).toBe(1)
+  })
+
+  it('bounces up to the apex of a full held jump', () => {
+    const jump = setup()
+    jump.hold('jump')
+    jump.step(['jump'])
+    let apex = 0
+    for (let ms = 0; ms < 900; ms += STEP_MS) {
+      jump.step()
+      apex = Math.max(apex, -jump.y())
+    }
+    expect(apex).toBeGreaterThan(80)
+
+    const rig = setup()
+    rig.lift(300)
+    rig.step(['heavy'])
+    rig.wait(100)
+    const from = rig.y()
+    expect(rig.bounce()).toBe(true)
+    let top = 0
+    for (let ms = 0; ms < 900; ms += STEP_MS) {
+      rig.step()
+      top = Math.max(top, from - rig.y())
+    }
+    expect(top).toBeGreaterThan(apex * 0.93)
+    expect(top).toBeLessThan(apex * 1.07)
+  })
+
+  it('allows no second plunge after a bounce without the card', () => {
+    const { started, step, wait, bounce, airborne, longJump } = setup()
+    longJump()
+    step(['heavy'])
+    wait(100)
+    expect(bounce(false)).toBe(true)
+    wait(150)
     expect(airborne()).toBe(true)
     step(['heavy'])
     wait(50)
     expect(meteors(started)).toBe(1)
   })
+})
 
-  it('refuses a sixth air heavy in one airtime', () => {
-    const { started, step, wait, motor, airborne } = chain(5, true)
-    expect(meteors(started)).toBe(5)
-    expect(motor.plungeChain).toBe(5)
+describe('pogo card', () => {
+  // Jumps, then plunges and bounces `count` times. Each plunge hits 100 ms after the press and
+  // the next press comes 150 ms into the bounce, well before its peak.
+  function chain(count: number) {
+    const rig = setup()
+    rig.longJump()
+    for (let i = 0; i < count; i++) {
+      rig.step(['heavy'])
+      rig.wait(100)
+      rig.bounce(true)
+      rig.wait(150)
+    }
+    return rig
+  }
+
+  it('allows PLUNGE_CHAIN_MAX plunges in one airtime, then none until landing', () => {
+    expect(PLUNGE_CHAIN_MAX).toBe(3)
+    const { started, step, wait, motor, airborne } = chain(PLUNGE_CHAIN_MAX)
+    expect(meteors(started)).toBe(PLUNGE_CHAIN_MAX)
     expect(airborne()).toBe(true)
     step(['heavy'])
     wait(50)
-    expect(meteors(started)).toBe(5)
+    expect(meteors(started)).toBe(PLUNGE_CHAIN_MAX)
+    expect(motor.plungeChain).toBe(PLUNGE_CHAIN_MAX)
   })
 
-  it('starts the count over on landing', () => {
-    const { started, step, wait, motor, airborne } = chain(5, true)
+  it('bounces every plunge to the full jump speed', () => {
+    const { motor, step, wait, bounce, longJump } = setup()
+    longJump()
+    for (let i = 0; i < PLUNGE_CHAIN_MAX; i++) {
+      step(['heavy'])
+      wait(100)
+      bounce(true)
+      expect(motor.vy).toBe(-JUMP_VELOCITY)
+      wait(150)
+    }
+  })
+
+  it('resets the count on landing', () => {
+    const { started, step, wait, bounce, motor, airborne, longJump } = chain(PLUNGE_CHAIN_MAX)
     wait(1500)
     expect(airborne()).toBe(false)
     expect(motor.plungeChain).toBe(0)
-    step(['jump'])
-    wait(150)
-    step(['heavy'])
-    expect(meteors(started)).toBe(6)
+    longJump()
+    for (let i = 0; i < PLUNGE_CHAIN_MAX; i++) {
+      step(['heavy'])
+      wait(100)
+      bounce(true)
+      wait(150)
+    }
+    expect(meteors(started)).toBe(2 * PLUNGE_CHAIN_MAX)
   })
 
   it('gives back no jump with a chained bounce', () => {
-    const { motor, motorEnv } = chain(2, true)
+    const { motor, motorEnv } = chain(2)
     expect(motor.jumpsUsed).toBe(1)
     expect(motor.coyoteMs).toBe(0)
     expect(availableJump(motor, motorEnv)).toBeNull()
   })
+})
 
-  it('bounces a full jump high first and lower on every further bounce', () => {
-    expect(bounceFactor(1, true) * JUMP_VELOCITY).toBeCloseTo(JUMP_VELOCITY)
-    // Height grows with the square of the launch speed.
-    const heights = [1, 2, 3, 4, 5].map((link) => bounceFactor(link, true) ** 2)
-    expect(heights).toEqual(CHAIN_BOUNCE_HEIGHTS.map((h) => expect.closeTo(h, 6)))
-    for (let i = 1; i < heights.length; i++) expect(heights[i]).toBeLessThan(heights[i - 1])
-    expect(bounceFactor(1, false)).toBe(PLUNGE_BOUNCE_FACTOR)
+describe('dash attacks', () => {
+  it('carry none of the dash speed into the attack', () => {
+    const rig = setup()
+    const run = runSpeed(rig.motorEnv)
+    rig.hold('right')
+    rig.step(['dash'])
+    rig.wait(30)
+    rig.step(['light'])
+    while (rig.motor.dashMs > 0) rig.step()
+    rig.step()
+    expect(rig.started.map((s) => s.variant)).toEqual(['dash'])
+    expect(rig.motor.vx).toBeLessThanOrEqual(run)
+
+    const still = setup()
+    still.hold('right')
+    still.step(['dash'])
+    still.wait(30)
+    still.hold()
+    still.step(['light'])
+    while (still.motor.dashMs > 0) still.step()
+    still.step()
+    const x = still.x()
+    still.wait(400)
+    expect(still.motor.vx).toBe(0)
+    expect(still.x()).toBeCloseTo(x)
+  })
+
+  it('still start as attacks', () => {
+    const light = setup()
+    light.step(['dash'])
+    light.step(['light'])
+    light.wait(MOTOR.dashMs + 2 * STEP_MS)
+    expect(light.started).toEqual([{ name: 'lunge', variant: 'dash' }])
+    const heavy = setup()
+    heavy.step(['dash', 'heavy'])
+    heavy.wait(MOTOR.dashMs + 2 * STEP_MS)
+    expect(heavy.started).toEqual([{ name: 'comet', variant: 'dash' }])
   })
 })
 
@@ -408,8 +552,7 @@ describe('player feel', () => {
         expect(motorEnv.speedScale).toBe(1)
       } else if (attacks.phase() !== 'idle') {
         expect(motorEnv.speedScale).toBe(0.5)
-        // The lunge pushes faster than the half speed, for its short window only.
-        if (attacks.moveElapsedMs() > 160) expect(motor.vx).toBeLessThanOrEqual(MOTOR.runSpeed * 0.5 + 1)
+        expect(motor.vx).toBeLessThanOrEqual(MOTOR.runSpeed * 0.5 + 1)
         guarded++
       }
     }
@@ -434,24 +577,22 @@ describe('player feel', () => {
     expect(motor.facing).toBe(-1)
   })
 
-  it('pushes faster than the half-speed run for the first 60 ms of the active phase, and stays put without a direction', () => {
-    const lunging = setup()
-    lunging.hold('right')
-    lunging.step(['light'])
-    while (lunging.attacks.phase() !== 'active') lunging.step()
-    const speeds: number[] = []
-    for (let ms = 0; ms < LUNGE_MS - STEP_MS; ms += STEP_MS) {
-      lunging.step()
-      speeds.push(lunging.motor.vx)
+  it('does not move the mage when no direction is held, on the ground or in the air', () => {
+    const rig = setup()
+    for (const press of ['light', 'light', 'light', 'heavy'] as Action[]) {
+      rig.step([press])
+      rig.wait(500)
     }
-    expect(speeds.length).toBeGreaterThan(3)
-    for (const vx of speeds) expect(vx).toBeCloseTo(140)
-    expect(140).toBeGreaterThan(MOTOR.runSpeed * ATTACK_GROUND_SPEED)
-
-    const standing = setup()
-    standing.step(['light'])
-    standing.wait(300)
-    expect(standing.x()).toBe(0)
+    expect(rig.x()).toBe(0)
+    rig.hold('jump')
+    rig.step(['jump'])
+    rig.wait(200)
+    rig.hold()
+    rig.step(['light'])
+    rig.wait(400)
+    rig.step(['heavy'])
+    rig.wait(400)
+    expect(rig.x()).toBe(0)
   })
 
   it('turns a keyboard player to the held direction once the cancel window opens, but not before', () => {
@@ -466,30 +607,6 @@ describe('player feel', () => {
     expect(attacks.canCancel()).toBe(true)
     expect(attacks.phase()).toBe('recovery')
     expect(motor.facing).toBe(-1)
-  })
-})
-
-describe('lungeVelocity', () => {
-  it('lunges towards the facing while a direction is held', () => {
-    expect(lungeVelocity(140, 1, false, true, true, 0)).toBe(140)
-    expect(lungeVelocity(140, -1, true, false, false, 50)).toBe(-140)
-  })
-
-  it('never slows a mage who already moves faster in that direction', () => {
-    expect(lungeVelocity(80, 1, false, true, true, 105)).toBe(105)
-    expect(lungeVelocity(140, -1, true, false, false, -200)).toBe(-200)
-    expect(lungeVelocity(80, 1, false, true, true, 40)).toBe(80)
-    expect(lungeVelocity(80, 1, false, true, true, -50)).toBe(80)
-  })
-
-  it('stops a walking mage on the ground without a direction', () => {
-    expect(lungeVelocity(140, 1, false, false, true, 210)).toBe(0)
-    // Both held cancel out, as they do for the motor.
-    expect(lungeVelocity(140, 1, true, true, true, 210)).toBe(0)
-  })
-
-  it('keeps the air speed without a direction', () => {
-    expect(lungeVelocity(140, 1, false, false, false, -90)).toBe(-90)
   })
 })
 

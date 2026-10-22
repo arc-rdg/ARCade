@@ -60,7 +60,7 @@ const genericPlunge: Derive = (heavy) => {
   }
 }
 
-const momentumLight: Derive = (light) => ({ ...light, keepsMomentum: true, cancelAfterMs: 0, allowedInAir: true })
+const momentumLight: Derive = (light) => ({ ...light, cancelAfterMs: 0, allowedInAir: true })
 
 const airborneHeavy: Derive = (heavy) => ({ ...heavy, allowedInAir: true })
 
@@ -89,11 +89,9 @@ function overhead(real: CombatWorld): CombatWorld {
   return world
 }
 
-// The move with its hitboxes turned overhead. A forward lunge would carry the mage away from a
-// target above, so it is dropped.
+// The move with its hitboxes turned overhead.
 export const upward: Derive = (source) => ({
   ...source,
-  lunge: 0,
   allowedInAir: true,
   onActive: (ctx: AttackContext) => source.onActive({ ...ctx, combat: overhead(ctx.combat) }),
 })

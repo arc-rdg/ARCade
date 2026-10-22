@@ -302,7 +302,7 @@ export const variantTiming = (startupMs: number, activeMs: number, recoveryMs: n
 
 // Dash lights carry the dash, never lock and cancel right after their hit.
 export const dashLightTiming = (startupMs: number, activeMs: number, recoveryMs: number): Timing =>
-  variantTiming(startupMs, activeMs, recoveryMs, 0, { keepsMomentum: true })
+  variantTiming(startupMs, activeMs, recoveryMs, 0)
 
 // How long a hitbox riding on a plunge should last: until the expected landing, so a plunge cut
 // short by a hit leaves no box behind for long.

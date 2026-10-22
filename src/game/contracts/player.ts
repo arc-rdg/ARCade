@@ -35,10 +35,6 @@ export interface AttackMove {
   // After this many ms of recovery the next attack may cancel the move. A jump or dash ends a move
   // at any time.
   cancelAfterMs: number
-  // Horizontal push for the first 60 ms of the active phase, world units per second, only while
-  // left or right is held. Without a direction the mage stays in place (lungeVelocity in
-  // player/controls.ts).
-  lunge?: number
   allowedInAir: boolean
   // A lock that starts when the active phase ends. While it runs the mage takes no movement input
   // and cannot attack or cancel the move into another one. Attack presses in its last 150 ms stay
@@ -56,9 +52,6 @@ export interface AttackMove {
   onLand?(ctx: AttackContext): void
   // Holds the fall speed near 0 for this long from the start of the move, during startup and active.
   hover?: { ms: number }
-  // For dash variants: the dash speed carries through startup and active, then normal friction
-  // takes over. Without it the dash stops when the move starts.
-  keepsMomentum?: boolean
   // The held weapon spins around the hand during the active phase.
   spin?: boolean
   // Called once when the active phase starts. Spawns hitboxes or projectiles.
@@ -74,7 +67,7 @@ export interface AttackMove {
 // all of them.
 //
 // The variants are optional. Without them the player falls back to a plunge built from the heavy
-// move's damage (airHeavy), the first light move with keepsMomentum (dashLight), the heavy move
+// move's damage (airHeavy), the first light move (dashLight), the heavy move
 // (dashHeavy), and the move with its hitboxes turned to point overhead (upLight, upHeavy).
 // A variant that returns null has none, and the attack machine tries the next one (see
 // AttackVariant). upLight and upHeavy return null for weapons that aim at the pointer, so up
@@ -82,7 +75,7 @@ export interface AttackMove {
 export interface WeaponMoveset {
   id: PlayerWeaponId
   moves(slot: WeaponSlot, tier: 1 | 2): AttackMove[]
-  // Heavy pressed in the air.
+  // Heavy pressed in the air, after a held jump or a fall (not after a hop).
   airHeavy?(tier: 1 | 2): AttackMove | null
   // Light or heavy pressed during a dash.
   dashLight?(tier: 1 | 2): AttackMove | null

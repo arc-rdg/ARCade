@@ -40,17 +40,17 @@ const JAB_SHAPE = { x: 4, y: -46, w: 68, h: 36 }
 const LIGHT: AttackMove[] = [
   move(
     'Staff jab',
-    { startupMs: 110, activeMs: 85, recoveryMs: 220, cancelAfterMs: 155, lunge: 140, allowedInAir: true },
+    { startupMs: 110, activeMs: 85, recoveryMs: 220, cancelAfterMs: 155, allowedInAir: true },
     { shape: JAB_SHAPE, damage: 12, knockback: { x: 110, y: -40 }, hitStopMs: 35, tags: ['light'] },
   ),
   move(
     'Staff jab',
-    { startupMs: 110, activeMs: 85, recoveryMs: 220, cancelAfterMs: 155, lunge: 140, allowedInAir: true },
+    { startupMs: 110, activeMs: 85, recoveryMs: 220, cancelAfterMs: 155, allowedInAir: true },
     { shape: JAB_SHAPE, damage: 12, knockback: { x: 110, y: -40 }, hitStopMs: 35, tags: ['light'] },
   ),
   move(
     'Staff thrust',
-    { startupMs: 130, activeMs: 90, recoveryMs: 300, cancelAfterMs: 220, lunge: 220, allowedInAir: true },
+    { startupMs: 130, activeMs: 90, recoveryMs: 300, cancelAfterMs: 220, allowedInAir: true },
     { shape: { x: 4, y: -46, w: 72, h: 36 }, damage: 20, knockback: { x: 300, y: -160 }, hitStopMs: 55, tags: ['light'] },
   ),
 ]
@@ -58,7 +58,7 @@ const LIGHT: AttackMove[] = [
 const HEAVY: AttackMove[] = [
   move(
     'Staff slam',
-    { startupMs: 320, activeMs: 120, recoveryMs: 460, cancelAfterMs: 320, lunge: 80, allowedInAir: false },
+    { startupMs: 320, activeMs: 120, recoveryMs: 460, cancelAfterMs: 320, allowedInAir: false },
     { shape: { x: -10, y: -68, w: 80, h: 68 }, damage: 36, knockback: { x: 260, y: -260 }, hitStopMs: 70, tags: ['heavy'] },
   ),
 ]
@@ -124,7 +124,6 @@ const LUNGE: AttackMove = {
   recoveryMs: 120,
   cancelAfterMs: 0,
   allowedInAir: true,
-  keepsMomentum: true,
   onActive(ctx) {
     const scale = ctx.rangeScale
     hitbox(ctx, { kind: 'rect', x: 0, y: -46, w: 72 * scale, h: 36 }, 90, { damage: 12, knockback: { x: 220, y: -60 }, hitStopMs: 40, tags: ['light'] })
@@ -140,7 +139,6 @@ const COMET: AttackMove = {
   recoveryMs: 220,
   cancelAfterMs: 150,
   allowedInAir: true,
-  keepsMomentum: true,
   lockMs: 150,
   onActive(ctx) {
     const scale = ctx.rangeScale
