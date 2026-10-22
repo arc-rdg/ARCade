@@ -28,8 +28,8 @@ export const JUMP_VELOCITY = Math.sqrt(2 * MOTOR.gravity * MOTOR.jumpHeightTiles
 // Air heavies that may hit in one airtime with the Technical Replicates card. Each bounce is a full
 // jump high. Without the card the first bounce ends the plunges until the next landing.
 export const PLUNGE_CHAIN_MAX = 3
-// A jump released before it was held this long is a hop: the cut applied early and the mage gets no
-// air heavy until the next landing. Held this long it is about 2 tiles high, enough to fall from.
+// A jump released before it was held this long is a hop: the cut applied early and it does not arm the
+// air heavy. Held this long it is about 2 tiles high, enough to fall from.
 export const HOP_MAX_HOLD_MS = 120
 
 export type MotorAction = 'left' | 'right' | 'down' | 'jump' | 'dash'
@@ -67,10 +67,16 @@ export interface MotorState {
   airDashUsed: boolean
   // True from a jump until jump is released, for the apex hang and the jump cut.
   jumpHeld: boolean
-  // How long jump has been held since the jump started, and whether it was let go before
-  // HOP_MAX_HOLD_MS. A hop refuses the air heavy until the next landing.
+  // How long jump has been held since the jump started. A jump let go before HOP_MAX_HOLD_MS is a hop.
   jumpHeldMs: number
-  hopped: boolean
+  // The mage may play an air heavy in this airtime. Leaving the ground (a jump that is not a hop, a
+  // ledge, a plank, a knockback) and an air jump arm it; a hop, an air dash, a landing or a plunge
+  // without Technical Replicates take it away.
+  armed: boolean
+  // After a hop: how far below the take-off height the mage is (negative while above). A hop that falls
+  // past the take-off height is a fall and arms the air heavy again, unless a dash came first.
+  hopDy: number
+  hopTrack: boolean
   // An air heavy started in this airtime, so no other may start before the mage lands
   // or is teleported. The jumpsUsed and airDashUsed it started with come back after its bounce.
   plungeUsed: boolean
@@ -101,7 +107,9 @@ export function createMotorState(facing: 1 | -1 = 1): MotorState {
     airDashUsed: false,
     jumpHeld: false,
     jumpHeldMs: 0,
-    hopped: false,
+    armed: false,
+    hopDy: 0,
+    hopTrack: false,
     plungeUsed: false,
     plungeJumpsUsed: 0,
     plungeAirDashUsed: false,
@@ -191,13 +199,20 @@ export function plungeBounced(state: MotorState, chains = false): void {
   state.airDashUsed = state.plungeAirDashUsed
   state.coyoteMs = 0
   state.jumpHeld = false
-  state.hopped = false
+  state.armed = !state.plungeUsed
+  state.hopTrack = false
 }
 
-// A plain heavy press in the air plays the air heavy, which only one may do per airtime and not
-// after a hop. The press then does nothing. Up and dash heavies are other variants and stay free.
-export function airHeavyRefused(state: MotorState, airborne: boolean, up: boolean, dashing: boolean): boolean {
-  return (state.plungeUsed || state.hopped) && airborne && !up && !dashing
+export type AirHeavyVerdict = 'allow' | 'defer' | 'refuse'
+
+// Whether a plain heavy may start as an air heavy now. The airtime must be armed: a jump that is not a
+// hop, or an air jump, and no air dash since. Only one plunge may start per airtime (with Technical
+// Replicates, up to PLUNGE_CHAIN_MAX). It starts only once the mage is past the apex: while rising the
+// press is deferred. At the apex a hop is always decided, because jump was released early or held
+// long. Up and dash heavies are other variants and stay free; the caller leaves them out.
+export function airHeavyVerdict(state: MotorState): AirHeavyVerdict {
+  if (!state.armed || state.plungeUsed) return 'refuse'
+  return state.vy < 0 ? 'defer' : 'allow'
 }
 
 // The pointer counts as in use for this long after it last moved or a mouse button went down. The
@@ -240,9 +255,12 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
     s.airDashUsed = false
     s.plungeUsed = false
     s.plungeChain = 0
-    s.hopped = false
+    s.armed = false
+    s.hopTrack = false
     if (s.vy > 0) s.vy = 0
   } else {
+    // The first step off the ground without a jump (ledge, plank, knockback) arms the air heavy.
+    if (s.coyoteMs >= MOTOR.coyoteMs) s.armed = true
     s.coyoteMs = Math.max(0, s.coyoteMs - dtMs)
   }
 
@@ -260,6 +278,8 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
     s.dashIframesMs = MOTOR.dashIframesMs
     s.dashCooldownMs = env.stats.dashCooldownMs
     s.jumpHeld = false
+    s.armed = false
+    s.hopTrack = false
     s.dashed = true
   }
 
@@ -276,7 +296,9 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
       s.jumpHeld = true
       // Only a jump off the ground can be a hop. An air jump adds height to an airtime already there.
       s.jumpHeldMs = kind === 'ground' ? 0 : HOP_MAX_HOLD_MS
-      s.hopped = false
+      s.armed = true
+      s.hopTrack = false
+      s.hopDy = 0
       s.jumped = true
       if (s.dashMs > 0) {
         s.dashMs = 0
@@ -289,7 +311,10 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
 
   if (s.jumpHeld && !input.held.has('jump')) {
     if (s.vy < 0) s.vy *= MOTOR.jumpCut
-    if (s.jumpHeldMs < HOP_MAX_HOLD_MS) s.hopped = true
+    if (s.jumpHeldMs < HOP_MAX_HOLD_MS) {
+      s.armed = false
+      s.hopTrack = true
+    }
     s.jumpHeld = false
   } else if (s.jumpHeld) s.jumpHeldMs += dtMs
 
@@ -320,5 +345,12 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
   let maxFall: number = MOTOR.terminalFall
   if (env.mechanics.hatGlide && !groundedNow && input.held.has('jump') && s.vy > 0) maxFall = MOTOR.glideFallSpeed
   if (s.vy > maxFall) s.vy = maxFall
+  if (s.jumpHeld || s.hopTrack) {
+    s.hopDy += s.vy * dt
+    if (s.hopTrack && s.hopDy > 0) {
+      s.armed = true
+      s.hopTrack = false
+    }
+  }
   return s
 }

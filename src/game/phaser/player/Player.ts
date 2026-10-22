@@ -517,7 +517,16 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     const phase = attacks.phase()
     const heavy = attack?.slot === 'heavy'
     const up = attack?.variant === 'up'
-    if (attack) {
+    // An air heavy waiting for the apex holds the heavy weapon raised, as in its wind-up.
+    const pending = attack === null && controls.heavyPending()
+    if (pending) {
+      posed.heavy = true
+      posed.variant = 'air'
+      posed.plunge = false
+      posed.spin = false
+      posed.hold = weaponHolds.heavy
+      posed.startupMs = 0
+    } else if (attack) {
       posed.heavy = heavy
       posed.variant = attack.variant
       posed.plunge = attack.move.plunge !== undefined
@@ -526,7 +535,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       posed.startupMs = attack.move.startupMs / build.stats.attackSpeed
     }
     // The move's own clock stops in hit-stop, so a spin stops with it.
-    const { poke } = weaponPose(attack ? posed : null, phase, attacks.moveElapsedMs(), pose)
+    const { poke } = weaponPose(attack || pending ? posed : null, pending ? 'startup' : phase, attacks.moveElapsedMs(), pose)
 
     mage.setPosition(0, bob)
     mage.setScale(baseScale * squashX * motor.facing, baseScale * squashY * breathe)
@@ -539,7 +548,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       weaponFront = weaponInFront
       container.moveTo(weapon, weaponFront ? container.length - 1 : smears.length)
     }
-    showWeapon(heldSlot(attack))
+    showWeapon(pending ? 'heavy' : heldSlot(attack))
     weapon.setVisible(pose.visible)
     weapon.setPosition(motor.facing * pose.x, pose.y + bob)
     weapon.scaleX = weaponScaleX * motor.facing
@@ -667,13 +676,14 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     teleport(tx, ty) {
       // A plunge that fell into a pit must not slam at the respawn point.
       attacks.cancel()
+      controls.cancelPending()
       body.reset(tx - W / 2, ty - H)
       motor.vx = 0
       motor.vy = 0
       motor.dashMs = 0
       motor.plungeUsed = false
       motor.plungeChain = 0
-      motor.hopped = false
+      motor.armed = false
       grounded = false
       container.setPosition(tx, ty)
     },

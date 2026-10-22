@@ -497,7 +497,7 @@ move's cancel window, and a press up to 250 ms after the move ended (`COMBO_GRAC
 the Triplicate finisher. Only one press waits at a time and later presses merge into it, so a
 mash stops at most one move after the last press. A longer pause, a heavy, a dash, a jump or a hit
 starts the string over.
-Attacks never move the mage: it moves only with the keys. There are no lunges.
+Attacks never push the mage sideways; only the plunge's fall and the up heavy's hop move it. There are no lunges.
 On the ground a move runs the mage at half speed (`ATTACK_GROUND_SPEED`) through its startup, active
 phase and the recovery before its cancel window. Past `cancelAfterMs` the mage runs at full speed.
 A light move shows a pull-back in its startup: the weapon swings back to about -0.25 rad and 4 units
@@ -506,18 +506,30 @@ A dash attack takes over from the dash and keeps none of its speed: the mage run
 left or right key held at that moment, or stands still (`dashAttackStarted` in `model/input/motor.ts`).
 
 Heavy pressed in the air plays the weapon's air heavy, mostly a plunge with a landing hit and a
-short landing lock (the downward attack). It needs an airtime that did not start from a hop: a jump
-let go before it was held 120 ms (`HOP_MAX_HOLD_MS`) is a hop, and until the next landing a heavy
-press in the air does nothing (it is dropped, not buffered, as a second air heavy is). A jump held
-longer, a fall (off a ledge, knockback, dropping through a plank) and an air jump all allow it. A heavy
-pressed on the very step a jump leaves the ground is dropped too. Up and dash heavies are other
-variants and stay free.
+short landing lock (the downward attack). It needs an armed airtime (`armed` in `model/input/motor.ts`):
+- Leaving the ground arms it: a jump that is not a hop (held 120 ms, `HOP_MAX_HOLD_MS`), an air jump,
+  and also walking off a ledge, dropping through a plank or a knockback launch. A hit taken during an
+  armed jump does not disarm it.
+- A hop does not arm it. A hop that falls below the height it took off from does (`hopDy`).
+- Any air dash disarms it until the next jump or air jump. A landing or a teleport ends the airtime.
+- Without Technical Replicates the bounce of a plunge does not arm it again. With the card each bounce
+  does, up to 3 plunges per airtime. A dash does not refund the count.
+A heavy pressed while not armed does nothing (it is dropped, not buffered). An armed heavy starts the
+plunge only once the mage is past the apex, falling (`vy >= 0`, after any apex hang): at once in a fall
+that began without a jump, at the apex of the jump or of the bounce otherwise. A heavy pressed while
+rising is queued as a pending air heavy. The check runs when the heavy would start, not when it is
+pressed, so a heavy buffered on the ground before a jump becomes a pending air heavy too, and ground
+spam never plunges near the floor. The pending heavy is a flag in `createControls` (not the 150 ms
+attack buffer) and the mage holds the heavy weapon raised in its wind-up pose meanwhile. An air jump
+cancels it (the jump arms again, and a new press queues for the apex of that jump). A dash cancels it
+and disarms. Another attack starting, a hit or stun, a landing and a teleport cancel it too. Up and dash
+heavies are other variants and stay free: a heavy pressed during a dash is the dash heavy.
 The first hit of an air heavy (the fall or the landing ring) ends the plunge and bounces the mage up
 to a full jump's height (launch speed `JUMP_VELOCITY`), free to steer and cancel at once.
 Only one air heavy fits in one airtime: until the mage lands or is teleported, another
 heavy press in the air does nothing. The bounce continues that airtime, so it gives back no jump or
 air dash, not even when the landing ring bounced the mage off the floor (`startPlunge`,
-`plungeBounced` and `airHeavyRefused` in `model/input/motor.ts`).
+`plungeBounced` and `airHeavyVerdict` in `model/input/motor.ts`).
 The Technical Replicates card (`serialDilution`, the pogo card) lifts the one-per-airtime rule: after a bounce
 another air heavy may start, up to 3 per airtime (`PLUNGE_CHAIN_MAX`), each bouncing to full jump height.
 The count (`plungeChain`) starts over on the same landing or teleport, and the bounces still
@@ -733,7 +745,7 @@ Click the canvas to give it keyboard focus.
 | What | Where |
 |---|---|
 | Run, jump, dash, coyote time, jump buffer | `model/input/motor.ts` (`MOTOR`) |
-| Hop limit for the air heavy, Technical Replicates plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
+| Hop limit that arms the air heavy (the plunge starts at the apex), Technical Replicates plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
 | Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, melee approach range, lunge and platform drop, blink and bomb timers) | `phaser/mobs/tuning.ts` |
 | Mob wind-up poses, ranged lead, contact cap, back-away and dive rules | `phaser/mobs/windup.ts`, `phaser/mobs/weaponPose.ts` |

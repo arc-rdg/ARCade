@@ -40,6 +40,10 @@ export interface AttackStepEnv {
   holdBuffer?: boolean
   // Up held and down not held.
   up?: boolean
+  // Whether a plain heavy may start as an air heavy now, checked on every step for a buffered heavy.
+  // 'refuse' drops it. 'defer' takes it out of the buffer and reports it through takeDeferredHeavy,
+  // for the caller to start once the mage falls. Default 'allow'.
+  airHeavy?: 'allow' | 'defer' | 'refuse'
 }
 
 export interface AttackInfo {
@@ -62,6 +66,8 @@ export interface AttackMachine {
   lockRemainingMs(): number
   // Time since the current move started, for hover.
   moveElapsedMs(): number
+  // True once after a buffered heavy was deferred (airHeavy 'defer'), then false again.
+  takeDeferredHeavy(): boolean
   // Ends the move, its lock and a landing it still waits for. For hits, teleports and cancels.
   cancel(): void
   // The player's own hit landed. True once per air heavy while its plunge falls or just after it
@@ -85,6 +91,7 @@ export function createAttackMachine(hooks: AttackHooks): AttackMachine {
   let bufferedSlot: WeaponSlot | null = null
   let bufferedMs = 0
   let bufferedDash = false
+  let deferredHeavy = false
   let lockMs = 0
   // The move waiting for its landing, which may outlive the move itself.
   let landing: AttackMove | null = null
@@ -250,6 +257,15 @@ export function createAttackMachine(hooks: AttackHooks): AttackMachine {
         else if (landingMs >= LANDING_WINDOW_MS) landing = null
       }
 
+      // Only a plain heavy in the air is an air heavy: dash and up heavies are other variants.
+      let airHeavy = env.airHeavy ?? 'allow'
+      if (bufferedSlot !== 'heavy' || env.grounded || env.up || dashing || bufferedDash) airHeavy = 'allow'
+      if (airHeavy === 'refuse') bufferedSlot = null
+      else if (airHeavy === 'defer') {
+        bufferedSlot = null
+        deferredHeavy = true
+      }
+
       if (bufferedSlot && env.canStart && lockMs <= 0) {
         let started = false
         if (phase === 'idle') {
@@ -277,6 +293,11 @@ export function createAttackMachine(hooks: AttackHooks): AttackMachine {
     lockRemainingMs: () => lockMs,
     moveElapsedMs: () => moveMs,
     cancel,
+    takeDeferredHeavy() {
+      const was = deferredHeavy
+      deferredHeavy = false
+      return was
+    },
     onOwnHit() {
       if (!bounceReady || !move) return false
       bounceReady = false

@@ -1,4 +1,4 @@
-import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyRefused, availableJump, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
+import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyVerdict, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { AttackInfo, AttackMachine, AttackStepEnv } from './attacks'
 
@@ -40,6 +40,11 @@ export interface Controls {
   faceCursor(cursorDx: number, pointerRecent: boolean): void
   // A dash variant took over the dash, so a later press plays the normal move again.
   endDashGrace(): void
+  // An air heavy was pressed on the way up and waits for the apex. The player shows the heavy's
+  // wind-up pose meanwhile.
+  heavyPending(): boolean
+  // Drops a pending air heavy, for a teleport.
+  cancelPending(): void
 }
 
 // Ties the attack machine to the motor. A jump or dash that can start always starts on the step it
@@ -64,6 +69,8 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
   let carriedHeavy = false
   // The attack started towards a recently used cursor, so its facing holds until the move ends.
   let aimed = false
+  // The air heavy waiting for the apex. It starts on the first step the mage falls, if still allowed.
+  let pendingHeavy = false
 
   return {
     step(live, livePresses, controllable, attackSpeed, dtMs, attacksBlocked = false, controlInMs = Infinity) {
@@ -97,6 +104,9 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       const grounded = motorEnv.grounded
       const move = controllable ? moveStarts(motor, input, motorEnv, dtMs) : null
       const dashRuns = motor.dashMs > 0 || move === 'dash'
+      // An air jump or a dash ends the wait and leaves the plunge unused, so a new heavy press queues it
+      // again: for the apex of that jump, or after the dash.
+      if (pendingHeavy && move !== null) pendingHeavy = false
       // A just-started jump can still report the ground, so a rising mage plays the air variants.
       attackEnv.grounded = grounded && motor.vy >= 0
       attackEnv.attackSpeed = attackSpeed
@@ -105,26 +115,35 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       attackEnv.holdBuffer = dashRuns
       attackEnv.up = presses.up
       attackPressed.light = controllable && !attacksBlocked && presses.light
-      // An air heavy that is not allowed (a second one, or after a hop) is dropped, not buffered, so it
-      // cannot slam on the landing. Pressed with the jump off the ground it is not allowed either,
-      // as the hop is not yet known to be long.
-      const jumpingOff = move === 'jump' && availableJump(motor, motorEnv) === 'ground'
-      attackPressed.heavy =
-        controllable &&
-        !attacksBlocked &&
-        presses.heavy &&
-        !jumpingOff &&
-        !airHeavyRefused(motor, !attackEnv.grounded, presses.up, attackEnv.dashing)
+      // The attack machine asks at the moment a heavy would start in the air, also for a press that
+      // waited in the buffer. A second air heavy or one after a hop is dropped, so it cannot slam on
+      // the landing. While a held jump may still turn out to be a hop the heavy waits.
+      const verdict = airHeavyVerdict(motor)
+      attackEnv.airHeavy = verdict
+      // A pending heavy ends with the landing, a dash or a refusal (a hop, or the plunge used up). It
+      // starts on the first step it is allowed, which is past the apex.
+      const startPending = pendingHeavy && verdict === 'allow' && !attackEnv.grounded && !dashRuns
+      if (pendingHeavy && (verdict === 'refuse' || attackEnv.grounded || dashRuns || attacksBlocked || !controllable)) pendingHeavy = false
+      attackPressed.heavy = controllable && !attacksBlocked && (presses.heavy || startPending)
+      if (startPending) pendingHeavy = false
       attacks.step(dtMs, attackPressed, attackEnv)
+      // A heavy the machine took out of its buffer while the mage rises waits for the apex too.
+      if (attacks.takeDeferredHeavy() && controllable) pendingHeavy = true
       const current = attacks.current()
       if (current !== seen) {
         seen = current
         if (current?.variant === 'air') startPlunge(motor)
+        // Any other attack that starts replaces the pending heavy.
+        else if (current) pendingHeavy = false
       }
       // After the attack step, so a plunge landing on this step still fires its landing hit. Hits
       // already spawned stay.
       if (move) attacks.cancel()
 
+      // Losing control ends the jump hold without making a hop, so a hit keeps the plunge available.
+      if (!controllable) {
+        motor.jumpHeld = false
+      }
       let motorInput = input
       if (attacks.lockRemainingMs() > 0 && controllable) {
         lockedInput.pressed = input.pressed
@@ -150,6 +169,10 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
     },
     endDashGrace() {
       sinceDashMs = Infinity
+    },
+    heavyPending: () => pendingHeavy,
+    cancelPending() {
+      pendingHeavy = false
     },
   }
 }
