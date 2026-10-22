@@ -203,15 +203,36 @@ export function plungeBounced(state: MotorState, chains = false): void {
   state.hopTrack = false
 }
 
+// The mage was moved somewhere else (a teleport, a rewind, a lift release). The airtime ends without
+// arming: no coyote jump, no first-step arming and no jump hold left over.
+export function teleported(state: MotorState): void {
+  state.vx = 0
+  state.vy = 0
+  state.dashMs = 0
+  state.plungeUsed = false
+  state.plungeChain = 0
+  state.armed = false
+  state.coyoteMs = 0
+  state.hopTrack = false
+  state.jumpHeld = false
+}
+
 export type AirHeavyVerdict = 'allow' | 'defer' | 'refuse'
 
 // Whether a plain heavy may start as an air heavy now. The airtime must be armed: a jump that is not a
 // hop, or an air jump, and no air dash since. Only one plunge may start per airtime (with Technical
 // Replicates, up to PLUNGE_CHAIN_MAX). It starts only once the mage is past the apex: while rising the
-// press is deferred. At the apex a hop is always decided, because jump was released early or held
-// long. Up and dash heavies are other variants and stay free; the caller leaves them out.
-export function airHeavyVerdict(state: MotorState): AirHeavyVerdict {
+// press is deferred. A held jump under HOP_MAX_HOLD_MS may still turn out to be a hop, also when a
+// ceiling has already zeroed the rise, so that waits too. Past that, a hop is decided: jump was
+// released early or held long. Up and dash heavies are other variants and stay free; the caller leaves
+// them out.
+//
+// `settling` is a press that the motor may still change this step: a jump (it arms) or the first
+// airborne step (the motor arms it inside the step). Those wait instead of being refused.
+export function airHeavyVerdict(state: MotorState, settling = false): AirHeavyVerdict {
+  if (settling) return 'defer'
   if (!state.armed || state.plungeUsed) return 'refuse'
+  if (state.jumpHeld && state.jumpHeldMs < HOP_MAX_HOLD_MS) return 'defer'
   return state.vy < 0 ? 'defer' : 'allow'
 }
 
@@ -259,8 +280,15 @@ export function stepMotor(state: MotorState, input: MotorInput, env: MotorEnv, d
     s.hopTrack = false
     if (s.vy > 0) s.vy = 0
   } else {
-    // The first step off the ground without a jump (ledge, plank, knockback) arms the air heavy.
-    if (s.coyoteMs >= MOTOR.coyoteMs) s.armed = true
+    // The first step off the ground without a jump arms the air heavy: a ledge or a plank drop, which
+    // leave the ground level or falling. A launch upward (a knockback) counts as a hop instead and
+    // arms only once the mage falls below the height it started from.
+    if (s.coyoteMs >= MOTOR.coyoteMs) {
+      if (s.vy < 0) {
+        s.hopTrack = true
+        s.hopDy = 0
+      } else s.armed = true
+    }
     s.coyoteMs = Math.max(0, s.coyoteMs - dtMs)
   }
 

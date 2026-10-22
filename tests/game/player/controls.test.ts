@@ -12,6 +12,7 @@ import {
   dashAttackStarted,
   plungeBounced,
   runSpeed,
+  teleported,
 } from '../../../src/game/model/input/motor'
 import type { MotorEnv } from '../../../src/game/model/input/motor'
 import { createAttackMachine } from '../../../src/game/phaser/player/attacks'
@@ -27,10 +28,13 @@ const LIGHT = [move('jab', {}), move('jab', {}), move('thrust', { startupMs: 80,
 const HEAVY = [move('slam', { startupMs: 280, activeMs: 120, recoveryMs: 320, cancelAfterMs: 200, allowedInAir: false, lockMs: 150 })]
 const DASH_LIGHT = move('lunge', { startupMs: 40, activeMs: 90, recoveryMs: 120, cancelAfterMs: 0 })
 const DASH_HEAVY = move('comet', { startupMs: 70, activeMs: 160, recoveryMs: 220, cancelAfterMs: 150, lockMs: 150 })
+const UP_HEAVY = move('rod', { startupMs: 80, activeMs: 100, recoveryMs: 200, cancelAfterMs: 120 })
 const AIR_HEAVY = move('meteor', { startupMs: 90, activeMs: 0, recoveryMs: 220, cancelAfterMs: 160, landingLockMs: 220, plunge: { speed: 700 } })
 
 // The mage on a flat floor at y = 0 (y grows downwards), stepped like Player's onStep.
-function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
+// `noUpHeavy` is a weapon without an up heavy (the Centrifuge Disc), `ceiling` the height in px at
+// which the mage's head stops.
+function setup(mechanics: Partial<MotorEnv['mechanics']> = {}, opts: { noUpHeavy?: boolean; ceiling?: number } = {}) {
   const motor = createMotorState()
   const motorEnv: MotorEnv = {
     grounded: true,
@@ -41,12 +45,14 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   }
   const cursor = { dx: 0, recent: false }
   let floorY = 0
+  let upHeld = false
   const started: { name: string; variant: AttackVariant }[] = []
   const attacks = createAttackMachine({
     movesFor: (slot) => (slot === 'light' ? LIGHT : HEAVY),
     variantFor(slot, variant) {
       if (variant === 'dash') return slot === 'light' ? DASH_LIGHT : DASH_HEAVY
       if (variant === 'air') return slot === 'heavy' ? AIR_HEAVY : null
+      if (variant === 'up') return slot === 'heavy' && !opts.noUpHeavy ? UP_HEAVY : null
       return null
     },
     onStart(_slot, _index, m, variant) {
@@ -70,13 +76,17 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
     motorEnv.grounded = y >= floorY
     const set = new Set<string>(pressed)
     const held = new Set<string>([...pressed, ...heldKeys])
-    const presses = { light: set.has('light'), heavy: set.has('heavy'), up: false }
+    const presses = { light: set.has('light'), heavy: set.has('heavy'), up: upHeld }
     controls.step({ held, pressed: set, released }, presses, controllable, 1, STEP_MS, attacksBlocked, controlInMs)
     x += (motor.vx * STEP_MS) / 1000
     y += (motor.vy * STEP_MS) / 1000
     if (y >= floorY) {
       y = floorY
       if (motor.vy > 0) motor.vy = 0
+    }
+    if (opts.ceiling !== undefined && y < floorY - opts.ceiling) {
+      y = floorY - opts.ceiling
+      if (motor.vy < 0) motor.vy = 0
     }
   }
   const step = (pressed: Action[] = [], attacksBlocked = false) => stepWith(pressed, attacksBlocked, true, 0)
@@ -115,7 +125,7 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   const setFloor = (depth: number) => {
     floorY = depth
   }
-  return { motor, motorEnv, attacks, controls, started, cursor, setFloor, toApex, step, wait, hold, hurtStep, bounce, lift, longJump, x: () => x, y: () => y, airborne: () => y < floorY }
+  return { setUp: (v: boolean) => (upHeld = v), motor, motorEnv, attacks, controls, started, cursor, setFloor, toApex, step, wait, hold, hurtStep, bounce, lift, longJump, x: () => x, y: () => y, airborne: () => y < floorY }
 }
 
 describe('createControls', () => {
@@ -518,14 +528,27 @@ describe('downward attack', () => {
     expect(meteors(started)).toBe(1)
   })
 
-  it('waits for the apex after a knockback launch off the ground', () => {
+  it('never plunges after a knockback launch on a flat floor', () => {
     const rig = setup()
     rig.step()
     rig.motor.vy = -300
     rig.step()
+    for (let n = 0; n < 200 && rig.airborne(); n++) rig.step(n % 3 === 0 ? ['heavy'] : [])
+    rig.wait(100)
+    expect(rig.started).toEqual([])
+    expect(rig.controls.heavyPending()).toBe(false)
+  })
+
+  it('plunges after a knockback launch once it falls below the height it left from', () => {
+    const rig = setup()
+    rig.step()
+    rig.setFloor(400)
+    rig.motor.vy = -300
+    rig.step()
     rig.step(['heavy'])
-    expect(rig.controls.heavyPending()).toBe(true)
-    rig.toApex()
+    expect(rig.controls.heavyPending()).toBe(false)
+    while (rig.y() < 20) rig.step()
+    rig.step(['heavy'])
     rig.wait(2 * STEP_MS)
     expect(meteors(rig.started)).toBe(1)
   })
@@ -748,6 +771,113 @@ describe('air heavy waiting for the apex', () => {
     expect(availableJump(rig.motor, rig.motorEnv)).toBeNull()
     rig.step(['jump'])
     expect(rig.motor.jumped).toBe(false)
+  })
+})
+
+describe('air heavy edge cases', () => {
+  it('drops up + heavy of a weapon without an up heavy while unarmed, and allows one per airtime', () => {
+    const rig = setup({ airDash: true }, { noUpHeavy: true })
+    rig.hold('jump')
+    rig.step(['jump'])
+    rig.wait(300)
+    rig.hold()
+    rig.step(['dash'])
+    afterDash(rig)
+    rig.setUp(true)
+    rig.step(['heavy'])
+    rig.wait(300)
+    expect(rig.started.filter((s) => s.variant === 'air')).toEqual([])
+  })
+
+  it('keeps one plunge per airtime for up + heavy of a weapon without an up heavy', () => {
+    const rig = setup({}, { noUpHeavy: true })
+    rig.lift(2000)
+    rig.step()
+    rig.setUp(true)
+    rig.step(['heavy'])
+    rig.wait(2 * STEP_MS)
+    expect(meteors(rig.started)).toBe(1)
+    rig.step(['heavy'])
+    rig.wait(300)
+    expect(meteors(rig.started)).toBe(1)
+  })
+
+  it('still plays the up heavy of a weapon that has one', () => {
+    const rig = setup()
+    rig.lift(2000)
+    rig.step()
+    rig.setUp(true)
+    rig.step(['heavy'])
+    rig.wait(100)
+    expect(rig.started.map((s) => s.name)).toEqual(['rod'])
+  })
+
+  it('queues an air jump + heavy pressed together after an air dash', () => {
+    const rig = setup({ airDash: true, doubleJump: true })
+    rig.lift(900)
+    rig.step()
+    rig.step(['dash'])
+    afterDash(rig)
+    rig.hold('jump')
+    rig.step(['jump', 'heavy'])
+    expect(rig.motor.jumped).toBe(true)
+    expect(rig.controls.heavyPending()).toBe(true)
+    rig.hold()
+    rig.toApex()
+    rig.wait(2 * STEP_MS)
+    expect(meteors(rig.started)).toBe(1)
+  })
+
+  it('does not drop a heavy pressed on the first airborne step off a ledge', () => {
+    const rig = setup()
+    rig.lift(80)
+    rig.step(['heavy'])
+    rig.wait(2 * STEP_MS)
+    expect(meteors(rig.started)).toBe(1)
+  })
+
+  it('does not start a plunge under a ceiling before the hop is decided', () => {
+    const rig = setup({}, { ceiling: 30 })
+    rig.hold('jump')
+    rig.step(['jump', 'heavy'])
+    rig.wait(80)
+    expect(meteors(rig.started)).toBe(0)
+    rig.hold()
+    rig.wait(60)
+    expect(meteors(rig.started)).toBe(0)
+  })
+
+  it('plunges under a ceiling when jump is held past the hop limit', () => {
+    const rig = setup({}, { ceiling: 30 })
+    rig.hold('jump')
+    rig.step(['jump', 'heavy'])
+    rig.wait(HOP_MAX_HOLD_MS + 60)
+    expect(meteors(rig.started)).toBe(1)
+  })
+})
+
+describe('teleport', () => {
+  it('ends the airtime without arming or a coyote jump', () => {
+    const rig = setup()
+    rig.step()
+    expect(rig.motor.coyoteMs).toBe(MOTOR.coyoteMs)
+    rig.lift(300)
+    teleported(rig.motor)
+    rig.step(['heavy'])
+    rig.wait(300)
+    expect(rig.started).toEqual([])
+    rig.step(['jump'])
+    expect(rig.motor.jumped).toBe(false)
+  })
+
+  it('clears a jump hold and a hop in progress', () => {
+    const rig = setup()
+    rig.hold('jump')
+    rig.step(['jump'])
+    teleported(rig.motor)
+    expect(rig.motor.jumpHeld).toBe(false)
+    expect(rig.motor.hopTrack).toBe(false)
+    expect(rig.motor.armed).toBe(false)
   })
 })
 

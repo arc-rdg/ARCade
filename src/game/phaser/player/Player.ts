@@ -6,7 +6,7 @@ import type { Action, InputFrame } from '../../contracts/input'
 import type { AbilityHandler, AttackContext, PlayerEvents, PlayerHandle, WeaponMoveset } from '../../contracts/player'
 import type { PlayerBuild, PlayerWeaponId, WeaponSlot } from '../../contracts/progression'
 import { CORRUPTION } from '../../model/progression/corrupted'
-import { JUMP_VELOCITY, MOTOR, createMotorState, dashAttackStarted, plungeBounced, runSpeed } from '../../model/input/motor'
+import { JUMP_VELOCITY, MOTOR, createMotorState, dashAttackStarted, plungeBounced, runSpeed, teleported } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { InputLayer } from '../input/InputLayer'
 import { applySpriteRef } from '../art'
@@ -678,12 +678,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       attacks.cancel()
       controls.cancelPending()
       body.reset(tx - W / 2, ty - H)
-      motor.vx = 0
-      motor.vy = 0
-      motor.dashMs = 0
-      motor.plungeUsed = false
-      motor.plungeChain = 0
-      motor.armed = false
+      teleported(motor)
       grounded = false
       container.setPosition(tx, ty)
     },

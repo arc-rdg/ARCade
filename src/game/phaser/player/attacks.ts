@@ -258,8 +258,10 @@ export function createAttackMachine(hooks: AttackHooks): AttackMachine {
       }
 
       // Only a plain heavy in the air is an air heavy: dash and up heavies are other variants.
+      // Up counts only with a real up heavy: a weapon without one falls through to the air variant.
       let airHeavy = env.airHeavy ?? 'allow'
-      if (bufferedSlot !== 'heavy' || env.grounded || env.up || dashing || bufferedDash) airHeavy = 'allow'
+      const upVariant = env.up && variant('heavy', 'up', 0) !== null
+      if (bufferedSlot !== 'heavy' || env.grounded || upVariant || dashing || bufferedDash) airHeavy = 'allow'
       if (airHeavy === 'refuse') bufferedSlot = null
       else if (airHeavy === 'defer') {
         bufferedSlot = null

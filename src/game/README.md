@@ -508,10 +508,11 @@ left or right key held at that moment, or stands still (`dashAttackStarted` in `
 Heavy pressed in the air plays the weapon's air heavy, mostly a plunge with a landing hit and a
 short landing lock (the downward attack). It needs an armed airtime (`armed` in `model/input/motor.ts`):
 - Leaving the ground arms it: a jump that is not a hop (held 120 ms, `HOP_MAX_HOLD_MS`), an air jump,
-  and also walking off a ledge, dropping through a plank or a knockback launch. A hit taken during an
-  armed jump does not disarm it.
-- A hop does not arm it. A hop that falls below the height it took off from does (`hopDy`).
-- Any air dash disarms it until the next jump or air jump. A landing or a teleport ends the airtime.
+  and also walking off a ledge or dropping through a plank. A hit taken during an armed jump does not
+  disarm it.
+- A hop does not arm it. A hop that falls below the height it took off from does (`hopDy`). A knockback
+  launch upward counts as a hop, so on flat ground it never arms a plunge near the floor.
+- Any air dash disarms it until the next jump or air jump. A landing or a teleport ends the airtime, and a teleport leaves it unarmed with no coyote jump.
 - Without Technical Replicates the bounce of a plunge does not arm it again. With the card each bounce
   does, up to 3 plunges per airtime. A dash does not refund the count.
 A heavy pressed while not armed does nothing (it is dropped, not buffered). An armed heavy starts the

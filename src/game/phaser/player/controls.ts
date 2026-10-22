@@ -1,4 +1,4 @@
-import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, aimFacing, airHeavyVerdict, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
+import { AIM_DEAD_ZONE, EMPTY_MOTOR_INPUT, MOTOR, aimFacing, airHeavyVerdict, moveStarts, startPlunge, stepMotor } from '../../model/input/motor'
 import type { MotorEnv, MotorInput, MotorState } from '../../model/input/motor'
 import type { AttackInfo, AttackMachine, AttackStepEnv } from './attacks'
 
@@ -118,7 +118,9 @@ export function createControls(motor: MotorState, motorEnv: MotorEnv, attacks: A
       // The attack machine asks at the moment a heavy would start in the air, also for a press that
       // waited in the buffer. A second air heavy or one after a hop is dropped, so it cannot slam on
       // the landing. While a held jump may still turn out to be a hop the heavy waits.
-      const verdict = airHeavyVerdict(motor)
+      // A jump this step or the first airborne step still arms inside the motor step, so a press
+      // there waits for the next step instead of being refused on the old state.
+      const verdict = airHeavyVerdict(motor, move === 'jump' || (!grounded && motor.coyoteMs >= MOTOR.coyoteMs))
       attackEnv.airHeavy = verdict
       // A pending heavy ends with the landing, a dash or a refusal (a hop, or the plunge used up). It
       // starts on the first step it is allowed, which is past the apex.
