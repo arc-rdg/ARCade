@@ -14,12 +14,13 @@ interface ArcadeStoryProps {
   seed?: string
   autoStart?: boolean
   fullscreen?: boolean
+  tutorialStorageKey?: string | null
   width: string
   height: string
 }
 
 // The host gives the size, so every story is a plain box and the arcade fills it.
-function ArcadeBox({ provenance, title, seed, autoStart, fullscreen, width, height }: ArcadeStoryProps) {
+function ArcadeBox({ provenance, title, seed, autoStart, fullscreen, tutorialStorageKey, width, height }: ArcadeStoryProps) {
   const host = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const element = host.current
@@ -30,9 +31,10 @@ function ArcadeBox({ provenance, title, seed, autoStart, fullscreen, width, heig
       seed,
       autoStart,
       fullscreen,
+      tutorialStorageKey,
     })
     return () => handle.destroy()
-  }, [provenance, title, seed, autoStart, fullscreen])
+  }, [provenance, title, seed, autoStart, fullscreen, tutorialStorageKey])
   const style: CSSProperties = { width, height, outline: '1px dashed #999' }
   return <div ref={host} style={style} />
 }
@@ -71,6 +73,13 @@ export const CompactTile: Story = { args: { width: '280px', height: '200px' } }
 
 // A narrow, tall box (a phone popup) still shows the logo, the quest and the buttons without scrolling.
 export const NarrowTall: Story = { args: { width: '280px', height: '710px' } }
+
+// The "New here?" tag on Training shows until Training has been opened once. This story keeps the
+// note for the session only, so it shows every time.
+export const FirstVisit: Story = { args: { tutorialStorageKey: null } }
+
+// The compact title card shows Training as an icon next to the settings.
+export const CompactFirstVisit: Story = { args: { width: '280px', height: '200px', tutorialStorageKey: null } }
 
 export const FixedSeed: Story = { args: { seed: 'talinum1' } }
 

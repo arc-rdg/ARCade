@@ -214,6 +214,7 @@ src/game/
     content/       monsters, bosses and boss attacks from annotations and nodes
     progression/   build, XP and levels, card catalog, offers
     input/         key bindings and the player motor (run, jump, dash)
+    tutorial/      the Training steps and the dummy numbers
   phaser/          the runtime
     art/           roughjs scribble art, cached textures with 3 boiling variants
     combat/        hitboxes, projectiles, damage, hit-stop and feedback
@@ -222,6 +223,7 @@ src/game/
     player/        the mage, its attack machine and the staff
     player/weapons/ the other weapons, mechanics, legendaries and abilities (the loadout)
     mobs/          mob AI, passives, pickups and speech bubbles
+    tutorial/      the Training room, its HUD scene and the training dummies
     bosses/        node bosses, the final boss, telegraphs and safe zones
     scenes/        Boot, Stretch, Boss, Waystation, FinalBoss, Hud, LevelUp, Store, Swate, Death and Victory,
                    the run flow (RunDirector, RunContext), the waystation encounters and the level
@@ -694,6 +696,7 @@ Start Storybook with `npm run storybook` (port 6006) and open these stories:
 - `Game/Dev/LoadoutSandbox` has a panel that toggles any weapon, mechanic or legendary card.
 - `Game/Dev/CombatSandbox` runs the combat core with dummies and no player, debug outlines on.
 - `Game/Dev/ArtGallery` shows the generated art.
+- `Game/Dev/Tutorial` is the Training room, with and without a plan for the finish card.
 
 Click the canvas to give it keyboard focus.
 
@@ -831,6 +834,28 @@ Esc opens the pause menu in `HudScene`: Resume, Level-up provenance, Settings an
 `{ type: 'settingsRequested' }` (`RunContext.requestSettings`) and nothing else, so the game stays paused. The shell opens its
 key bindings panel over the canvas and sends changes back with `setBindings`. When the panel closes, the canvas gets the focus
 back and the pause menu is still there; Resume continues the run.
+
+## Tutorial
+
+The shell's Training button sends `{ type: 'startTutorial', plan }` instead of `start`. `RunContext.startTutorial` stops
+whatever runs and starts `TutorialScene` and `TutorialHudScene`. There is no `RunDirector`, no loadout and no `HudScene`, so no
+XP, pickups, fragments or kills. The game emits `tutorialStarted` when the room is up and `tutorialFinished` when the player
+reaches the portal. `runStarted` comes only if the player picks Start run on the finish card, which calls `startRun` in the
+same game. Without a plan the card offers no Start run.
+
+- `model/tutorial/steps.ts` holds the twelve steps. Each step lists its ticks and the one fact that fills each. The room turns
+  player and combat events into facts (`walked`, `landed`, `hit` and so on) and calls `report`. A step with `requires` is left
+  out for a build without that mechanic. Prompts are written with `promptFor`, which reads the current binding of every key, so
+  a rebind in Settings shows at once.
+- `TutorialScene` is a small copy of the gameplay scene's skeleton: the real player with `createBuild()`, the combat world,
+  hit-stop, the camera and its own holds (pause, external pause, finished). The player cannot die: a lethal hit is cancelled
+  and the health is topped up.
+- `TutorialHudScene` draws the step card, the pause card (Resume, Skip step, Settings, Back to menu) and the finish card. While
+  the pointer is over one of its buttons the room captures the mouse, so the click is not an attack.
+- `trainingDummy.ts` makes the calm and the angry dummy. They never die. The calm one shows the combo count and the damage
+  per second of the last 3 s. The angry one swings only during the Dodge step and in free play: a 750 ms telegraph on the
+  floor, then a 150 ms sweep. A dash that overlaps the sweep with its i-frames fills the Dodge step.
+- Open `Game/Dev/Tutorial` in Storybook to play it. `Shell/Arcade` has `FirstVisit` and `CompactFirstVisit` for the start screen.
 
 ## Tests
 

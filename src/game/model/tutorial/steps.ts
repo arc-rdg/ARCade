@@ -104,7 +104,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
     id: 'attack',
     title: 'Attack',
     ticks: 2,
-    lines: (k) => [`${k('light')} swings toward your cursor. Hit the dummy twice.`, 'Walk away from the dummy and swing at it anyway.'],
+    lines: (k) => [`${k('light')} swings toward your cursor. Hit the dummy twice.`, 'Swing at the dummy while you move away from it.'],
     tick: (fact, progress) => {
       if (fact.kind !== 'hit' || fact.slot !== 'light') return NONE
       if (fact.away) return 1

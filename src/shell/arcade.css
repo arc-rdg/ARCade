@@ -786,7 +786,7 @@
   pointer-events: none;
 }
 
-/* The compact title card has an icon for Training, left of the settings icon, with the tag under it. */
+/* The compact title card has an icon for Training, left of the settings icon, with a dot for the tag. */
 .arcade-root .arcade-training-icon {
   right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
 }
@@ -796,16 +796,20 @@
 }
 
 .arcade-root .arcade-new-chrome {
-  position: absolute;
-  z-index: 2;
-  top: calc(8px + max(14px, 1.6cqmin) * 2.4 + 4px);
-  right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
-  font-size: max(10px, 1.2cqmin);
-  transform: rotate(-3deg);
+  z-index: 3;
+  top: 3px;
+  right: calc(max(14px, 1.6cqmin) * 2.4 + 8px);
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  overflow: hidden;
+  text-indent: 100%;
+  border-radius: 50%;
+  transform: none;
 }
 
 .arcade-root[data-fullscreen] .arcade-new-chrome {
-  right: calc(max(14px, 1.6cqmin) * 4.8 + 20px);
+  right: calc(max(14px, 1.6cqmin) * 4.8 + 14px);
 }
 
 /* The settings and the changelog scroll inside a compact box too, and start at its top. */

@@ -1,6 +1,6 @@
 import { ARC } from '@nfdi4plants/arctrl'
 import { fireEvent, screen, waitFor, within } from '@testing-library/dom'
-import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildProvenanceIndex } from '../../src/arc/provenance/buildIndex'
 import type { ArcadeProvenance } from '../../src/arc/provenance/input'
 import type { Annotation } from '../../src/arc/provenance/types'
@@ -118,6 +118,7 @@ function mount(options: Partial<ArcadeOptions> = {}) {
 }
 
 beforeEach(() => {
+  localStorage.clear()
   stubPointer(true)
   visibilityCallbacks = []
   vi.stubGlobal(
@@ -648,4 +649,137 @@ it('keeps the keyboard focus on New path after it planned another path', async (
   click(button)
 
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'New path' }))
+})
+
+describe('Training', () => {
+  const TUTORIAL_KEY = 'arc-mage.tutorial.v1'
+  const sentCommands = () => vi.mocked(handle.send).mock.calls.map(([command]) => command)
+  const gameEvent = (event: GameEvent) => vi.mocked(handle.on).mock.calls.at(-1)?.[0](event)
+
+  async function startTraining(options: Partial<ArcadeOptions> = {}) {
+    mount(options)
+    click(await screen.findByRole('button', { name: 'Training' }))
+    await screen.findByRole('button', { name: 'Click to play' })
+  }
+
+  it('shows Training next to Start run with a "New here?" tag until it has been opened', async () => {
+    mount()
+
+    const training = await screen.findByRole('button', { name: 'Training' })
+    expect(training.getAttribute('aria-describedby')).toBe(screen.getByText('New here?').id)
+    expect(screen.getByRole('button', { name: 'Start run' })).toBeTruthy()
+  })
+
+  it('creates the game and sends the plan with startTutorial, never start', async () => {
+    await startTraining()
+
+    expect(createGame).toHaveBeenCalledTimes(1)
+    expect(sentCommands()).toContainEqual({ type: 'startTutorial', plan })
+    expect(sentCommands().some((command) => command.type === 'start')).toBe(false)
+  })
+
+  it('writes the flag and drops the tag once the room has started, not before', async () => {
+    await startTraining()
+    expect(localStorage.getItem(TUTORIAL_KEY)).toBeNull()
+
+    gameEvent({ type: 'tutorialStarted' })
+    expect(localStorage.getItem(TUTORIAL_KEY)).toBe('1')
+
+    arcade?.destroy()
+    mount()
+    await screen.findByRole('button', { name: 'Training' })
+    expect(screen.queryByText('New here?')).toBeNull()
+  })
+
+  it('keeps the tag for the session only when the storage key is null', async () => {
+    await startTraining({ tutorialStorageKey: null })
+    gameEvent({ type: 'tutorialStarted' })
+
+    expect(localStorage.length).toBe(0)
+    gameEvent({ type: 'menuRequested', choice: 'menu' })
+    await screen.findByRole('button', { name: 'Training' })
+    expect(screen.queryByText('New here?')).toBeNull()
+  })
+
+  it('works when the browser refuses storage', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    mount()
+
+    expect(await screen.findByText('New here?')).toBeTruthy()
+    click(screen.getByRole('button', { name: 'Training' }))
+    await screen.findByRole('button', { name: 'Click to play' })
+    expect(() => gameEvent({ type: 'tutorialStarted' })).not.toThrow()
+    get.mockRestore()
+    set.mockRestore()
+  })
+
+  it('is not offered on a touch-only device', async () => {
+    stubPointer(false)
+    mount()
+
+    expect(await screen.findByText('ARCade needs a keyboard and a mouse.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Training' })).toBeNull()
+  })
+
+  it('shows Training as an icon next to the settings gear in the compact card', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(280)
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(200)
+    mount()
+
+    const icon = await screen.findByRole('button', { name: 'Training' })
+    expect(icon.querySelector('svg')).toBeTruthy()
+    expect(icon.nextElementSibling?.textContent).toBe('New here?')
+    click(icon)
+    await screen.findByRole('button', { name: 'Click to play' })
+    expect(sentCommands()).toContainEqual({ type: 'startTutorial', plan })
+  })
+
+  it('starts the room without a plan for an ARC without provenance', async () => {
+    vi.mocked(planRun).mockReturnValue(null)
+    mount()
+
+    click(await screen.findByRole('button', { name: 'Training' }))
+    await screen.findByRole('button', { name: 'Click to play' })
+
+    expect(sentCommands()).toContainEqual({ type: 'startTutorial', plan: null })
+  })
+
+  it('goes back to the start screen with the focus on Training', async () => {
+    await startTraining()
+
+    gameEvent({ type: 'menuRequested', choice: 'menu' })
+
+    const training = await screen.findByRole('button', { name: 'Training' })
+    expect(handle.destroy).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(training)
+  })
+
+  it('opens the settings over the room and hands a rebinding to the game', async () => {
+    await startTraining()
+    const sends = sentCommands().length
+
+    gameEvent({ type: 'settingsRequested' })
+    const dialog = screen.getByRole('dialog', { name: 'Controls' })
+    click(within(dialog).getByRole('button', { name: 'Jump binding 1: Space' }))
+    fireEvent.keyDown(document.body, { key: 'x', code: 'KeyX' })
+
+    expect(sentCommands().slice(sends).map((command) => command.type)).toEqual(['setBindings'])
+  })
+
+  it('does not start a run from Retry when the room had no plan', async () => {
+    vi.mocked(planRun).mockReturnValue(null)
+    mount()
+    click(await screen.findByRole('button', { name: 'Training' }))
+    await screen.findByRole('button', { name: 'Click to play' })
+    const sends = sentCommands().length
+
+    gameEvent({ type: 'menuRequested', choice: 'retry' })
+
+    expect(sentCommands()).toHaveLength(sends)
+  })
 })
