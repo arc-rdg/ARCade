@@ -442,7 +442,7 @@ function reflectStance(ctx: AttackContext, durationMs: number): void {
 }
 
 // Petri variants. Shield Surf rides the shield down, turning shots back, and bashes on landing.
-// Shield Charge holds the shield forward through a long dash.
+// Shield Charge holds the shield forward and bashes. The mage stands still unless a key is held.
 // Lid Lift raises the shield overhead against shots from above, then bashes up.
 const SURF = { speed: 600 }
 

@@ -60,7 +60,7 @@ const genericPlunge: Derive = (heavy) => {
   }
 }
 
-const momentumLight: Derive = (light) => ({ ...light, cancelAfterMs: 0, allowedInAir: true })
+const dashLight: Derive = (light) => ({ ...light, cancelAfterMs: 0, allowedInAir: true })
 
 const airborneHeavy: Derive = (heavy) => ({ ...heavy, allowedInAir: true })
 
@@ -105,7 +105,7 @@ export function airHeavyOf(set: WeaponMoveset, tier: 1 | 2): AttackMove | null {
 export function dashLightOf(set: WeaponMoveset, tier: 1 | 2): AttackMove | null {
   if (set.dashLight) return set.dashLight(tier)
   const light = set.moves('light', tier)[0]
-  return light ? cached(dashLights, light, momentumLight) : null
+  return light ? cached(dashLights, light, dashLight) : null
 }
 
 export function dashHeavyOf(set: WeaponMoveset, tier: 1 | 2): AttackMove | null {

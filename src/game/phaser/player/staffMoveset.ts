@@ -116,7 +116,7 @@ const METEOR: AttackMove = {
   },
 }
 
-// Staff Lunge: the dash carries a long jab. It never locks and cancels right after the hit.
+// Staff Lunge: a long jab out of a dash. It never locks and cancels right after the hit.
 const LUNGE: AttackMove = {
   name: 'Staff Lunge',
   startupMs: 40,
@@ -130,8 +130,7 @@ const LUNGE: AttackMove = {
   },
 }
 
-// Comet Sweep: the staff spins around the mage while the dash carries it, so it hits on both sides
-// of the dash path.
+// Comet Sweep: the staff spins around the mage, so it hits on both sides.
 const COMET: AttackMove = {
   name: 'Comet Sweep',
   startupMs: 70,

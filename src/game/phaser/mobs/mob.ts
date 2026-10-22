@@ -20,6 +20,7 @@ import { LEDGE_DEPTH, LEDGE_LOOKAHEAD, PIT_DEPTH, groundProbe, sameLevel, turnsA
 import type { Box } from './ledge'
 import { approach, blinkDestination } from './motion'
 import { closesIn, dropDecision, dropWait, isStranded, lungeDistance, lunges, pressesPlayer, roomBefore } from './pressure'
+import type { StrandedInput } from './pressure'
 import { createFlimmer } from './phantom'
 import type { Flimmer } from './phantom'
 import { dropOntologyFragments, dropShieldFragment } from './pickups'
@@ -358,6 +359,8 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   let dropDir: -1 | 1 = 1
   let dropLanded = false
   let lungeDir: -1 | 1 = 1
+  // Reused every step so the stranded check allocates nothing.
+  const strandedIn: StrandedInput = { canDrop: false, aggro: false, onGround: false, below: 0, inReach: false }
   let phase: AttackPhase = 'idle'
   let activeBox: { cancel(): void } | null = null
   let projectileRef: SpriteRef | null = null
@@ -520,7 +523,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
 
   function thinkGround(dt: number) {
     const speed = stats.speed * mods.speed * st.timeScale
-    if (st.lungeMs > 0) {
+    if (st.lungeMs > 0 && st.stunMs <= 0) {
       runLunge(dt)
       return
     }
@@ -862,7 +865,12 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       st.targetVx = dropDir * Math.max(speed, DROP_MIN_SPEED)
       return true
     }
-    const stranded = isStranded({ canDrop: chasing && spec.body !== 'crawler', aggro, onGround, below: st.pFeet - feetY(), inReach: inReach() })
+    strandedIn.canDrop = chasing && spec.body !== 'crawler'
+    strandedIn.aggro = aggro
+    strandedIn.onGround = onGround
+    strandedIn.below = st.pFeet - feetY()
+    strandedIn.inReach = inReach()
+    const stranded = isStranded(strandedIn)
     st.dropWaitMs = dropWait(st.dropWaitMs, dt, stranded && st.dropCdMs <= 0)
     if (st.dropWaitMs <= 0) return false
     if (dropDecision(st.dropWaitMs, stranded, true) !== 'drop') return false
@@ -1778,6 +1786,8 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       st.squashMs = SQUASH_MS
       st.squashAmount = reaction.staggerMs > 0 ? 1 : 0.5
       st.tiltDir = hit.knockback.x >= 0 ? 1 : -1
+      // The knockback ends a lunge, also from a hit that does not stagger.
+      st.lungeMs = 0
       if (reaction.staggerMs > 0) {
         interruptAttack()
         st.staggerMs = Math.max(st.staggerMs, reaction.staggerMs)
