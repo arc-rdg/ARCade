@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.6 - 2026-10-22
+
+### ✨ Added
+
+- Training on the start screen is a short practice room for the controls: moving, jumping, dropping through platforms, dashing, dodging, light, heavy and special attacks, combos, cancelling and pausing. Each step shows your own key bindings and ticks off once you have done it, and you can skip any step. One dummy shows your damage and combo, and an angry one winds up and swings so you can practise dashing through it. A "New here?" tag sits on the button until you open it once. At the end you can start a run right away or keep practising.
+- SWATE (deprecated) has a sticker that does not hold very well. Give it a few knocks and see what happens.
+
+### 🔄 Changed
+
+- Boss minions are bigger and look dangerous now: spiky red-orange balls with an eye that watches you. They rise up with a ring and a "!" for a moment before they can move or hurt you. Hit them to destroy them. They crack when badly hurt and burst when they die, and the boss info says so too.
+
+### 🐛 Fixed
+
+- Boss danger zones disappear as soon as the danger in that part is over. They shrink behind a charging boss and a travelling shockwave, and fade when a slam, sweep, beam or pillar has finished or the last rain drop has landed. Before, they stayed red until the whole attack ended.
+
 ## 0.1.5 - 2026-10-17
 
 ### ✨ Added
