@@ -3,6 +3,8 @@ import type { SpriteRef } from '../../contracts/art'
 import { PALETTE } from '../../contracts/constants'
 import { spriteFrom } from './atlas'
 import { metal } from './looks'
+import type { Pt } from './geometry'
+import type { Pen } from './pen'
 import { cssColor } from './palette'
 
 // SWATE (deprecated) of the waystation: an annotation table that grew legs, drawn after the real
@@ -39,7 +41,58 @@ const TABLE_W = TABLE.index + TABLE.col * TABLE.columns
 const TABLE_H = TABLE.header + TABLE.row * TABLE.rows
 const HEADERS: readonly (readonly string[])[] = [['Input', '[Source]'], ['Protocol', 'Uri'], ['Output', '[Sample]']]
 
-export function swateArt(scene: Phaser.Scene): SpriteRef {
+
+export type SwateLook = 'full' | 'bare' | 'happy'
+
+// The ARCitISA badge: its corners on the sheet and the frame its own texture covers. In the
+// waystation it is a sprite of its own, so it can be hit, peel and fall.
+const BADGE = (right: number, h: number): Pt[] => [[right - 10, h - 11], [right + 15, h - 13], [right + 16, h - 4], [right - 9, h - 2]]
+const BADGE_FRAME = { x: TABLE.x + TABLE_W - 12, y: SHEET.h - 15, w: 30, h: 14 }
+// The box the badge fills in the world, from the bottom centre of SWATE (up is negative).
+export const SWATE_LABEL = {
+  x: (TABLE.x + TABLE_W - 10 - SHEET.w / 2) * GROW,
+  y: -13 * GROW,
+  w: 26 * GROW,
+  h: 11 * GROW,
+}
+export const SWATE_LABEL_WIDTH = BADGE_FRAME.w * GROW
+export const SWATE_LABEL_HEIGHT = BADGE_FRAME.h * GROW
+// The top left corner of the badge, where it peels from: its place from the bottom centre of SWATE
+// and as a share of the badge frame.
+export const SWATE_LABEL_PIVOT = {
+  x: (BADGE_FRAME.x + 2 - SHEET.w / 2) * GROW,
+  y: -13.5 * GROW,
+  originX: 2.5 / BADGE_FRAME.w,
+  originY: 2.5 / BADGE_FRAME.h,
+}
+
+function drawBadge(pen: Pen, right: number, h: number): void {
+  pen.poly(BADGE(right, h), { tint: SLATE, line: TEAL, weight: 0.9, rough: 0.3 })
+  pen.text(['ARCitISA'], right + 3, h - 7.5, 4.6, 24, -0.07, TEAL_LIGHT)
+}
+
+// The badge alone, on a frame of its own.
+export function swateLabelArt(scene: Phaser.Scene): SpriteRef {
+  const { x, y, w, h } = BADGE_FRAME
+  return spriteFrom(scene, {
+    key: 'scribble:swate:label',
+    width: w * GROW,
+    height: h * GROW,
+    scale: TEXTURE_PIXELS,
+    anchors: { weapon: { x: 0, y: 0 }, head: { x: 0, y: 0 } },
+    draw(pen) {
+      pen.ctx.save()
+      pen.ctx.scale(GROW, GROW)
+      pen.ctx.translate(-x, -y)
+      drawBadge(pen, TABLE.x + TABLE_W, SHEET.h)
+      pen.ctx.restore()
+    },
+  })
+}
+
+// 'full' is the picture with the badge on it. 'bare' and 'happy' are the waystation body without
+// it, as the badge is its own sprite there. 'happy' has closed smiling eyes and no DEPRECATED stamp.
+export function swateArt(scene: Phaser.Scene, look: SwateLook = 'full'): SpriteRef {
   const h = SHEET.h
   const { x: left, y: top } = TABLE
   const right = left + TABLE_W
@@ -47,7 +100,7 @@ export function swateArt(scene: Phaser.Scene): SpriteRef {
   const colX = (i: number) => left + TABLE.index + TABLE.col * i
   const rowY = (i: number) => top + TABLE.header + TABLE.row * i
   return spriteFrom(scene, {
-    key: 'scribble:swate',
+    key: look === 'full' ? 'scribble:swate' : `scribble:swate:${look}`,
     width: SWATE_WIDTH,
     height: SWATE_HEIGHT,
     scale: TEXTURE_PIXELS,
@@ -78,6 +131,11 @@ export function swateArt(scene: Phaser.Scene): SpriteRef {
         const cx = colX(i) + TABLE.col / 2
         const cy = rowY(0) + TABLE.row / 2
         pen.rect(cx - 5.5, cy - 3.5, 11, 7, { tint: '#f4f4f5', weight: 0.8, rough: 0.2 })
+        if (look === 'happy') {
+          pen.curve([[cx - 3.6, cy + 1], [cx - 1.8, cy - 1.6], [cx, cy + 1]], { weight: 0.9, rough: 0.1 })
+          pen.curve([[cx + 0.2, cy + 1], [cx + 2, cy - 1.6], [cx + 3.8, cy + 1]], { weight: 0.9, rough: 0.1 })
+          continue
+        }
         pen.text(['F2'], cx - 1.6, cy, 3.4, 6, 0, INK)
         pen.dot(cx + 3, cy + 0.4, 1.3)
       }
@@ -108,13 +166,15 @@ export function swateArt(scene: Phaser.Scene): SpriteRef {
       const midX = left + TABLE_W / 2
       pen.rect(left + 1, tagY, TABLE_W - 2, 15, { tint: '#fffdf6', weight: 1, rough: 0.3 })
       pen.text(['SWATE'], midX, tagY + 4.8, 8, TABLE_W - 8, 0, NAVY)
-      pen.at(midX, tagY + 11.2, -0.07, () => {
-        pen.rect(-17, -2.8, 34, 5.6, { line: RED, weight: 1.1, rough: 0.3 })
-        pen.text(['DEPRECATED'], 0, 0.1, 4.2, 31, 0, RED)
-      })
+      if (look === 'happy') pen.curve([[midX - 7, tagY + 10], [midX, tagY + 12.6], [midX + 7, tagY + 10]], { line: TEAL, weight: 0.9, rough: 0.2 })
+      else {
+        pen.at(midX, tagY + 11.2, -0.07, () => {
+          pen.rect(-17, -2.8, 34, 5.6, { line: RED, weight: 1.1, rough: 0.3 })
+          pen.text(['DEPRECATED'], 0, 0.1, 4.2, 31, 0, RED)
+        })
+      }
       // The ARCitISA badge beside the legs, clear of the name.
-      pen.poly([[right - 10, h - 11], [right + 15, h - 13], [right + 16, h - 4], [right - 9, h - 2]], { tint: SLATE, line: TEAL, weight: 0.9, rough: 0.3 })
-      pen.text(['ARCitISA'], right + 3, h - 7.5, 4.6, 24, -0.07, TEAL_LIGHT)
+      if (look === 'full') drawBadge(pen, right, h)
       pen.ctx.restore()
     },
   })

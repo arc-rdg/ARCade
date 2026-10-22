@@ -3,11 +3,12 @@ import type { Combatant, CombatWorld, HitEvent } from '../../contracts/combat'
 import { DEPTH, PALETTE, TILE } from '../../contracts/constants'
 import { HOSTILE_STRIKE } from '../../model/progression'
 import type { EncounterKind } from '../../model/run'
-import { ARM_LENGTH, applySpriteRef, DATENKRAKE_ARMS, DATENKRAKE_HEIGHT, DATENKRAKE_WIDTH, datenkrakeArmArt, datenkrakeArt, stallArt, SWATE_HEIGHT, swateArt, TRADER_HEIGHT, TRADER_WIDTH, traderArt } from '../art'
+import { ARM_LENGTH, applySpriteRef, DATENKRAKE_ARMS, DATENKRAKE_HEIGHT, DATENKRAKE_WIDTH, datenkrakeArmArt, datenkrakeArt, stallArt, SWATE_HEIGHT, SWATE_LABEL_PIVOT, SWATE_LABEL_WIDTH, SWATE_LABEL_HEIGHT, swateArt, swateLabelArt, TRADER_HEIGHT, TRADER_WIDTH, traderArt } from '../art'
 import { cssColor } from '../color'
 import { acquireBubble } from '../mobs/bubbles'
 import type { Player } from '../player/Player'
 import type { RunDirector } from './RunDirector'
+import { createLabelState, labelZone } from './swateLabel'
 import { addText } from './ui'
 
 // The encounters of the waystation. Each kind of `model/run/encounters.ts` has a spawner here that
@@ -351,14 +352,32 @@ function spawnDatenkrake(host: EncounterHost, x: number): Encounter {
 const SWATE_BODY = 60
 const SWATE_BOB_MS = 1500
 const SWATE_BOB = 1.2
+// The ARCitISA label: each hit tilts it further, wobbles it and shakes SWATE a little. The last one
+// drops it to the floor, and SWATE hops about for a moment.
+const LABEL_TILT = 0.2
+const LABEL_WOBBLE_MS = 320
+const LABEL_WOBBLE = 0.12
+const LABEL_SHAKE = 1.5
+const LABEL_POP = 60
+const LABEL_GRAVITY = 700
+const LABEL_REST = 0.25
+const HAPPY_HOP_MS = 700
+const HAPPY_HOP = 7
 
 // SWATE (deprecated), a table editor on legs. It calls out when the mage arrives, opens its refine
 // screen on up and says goodbye in a bubble when the screen closes. The screen is SwateScene.
+// A neutral bystander covers its ARCitISA label: a few of the mage's hits knock the label off and
+// SWATE is happy for the rest of this waystation. The hits do no damage and change nothing else.
 function spawnSwate(host: EncounterHost, x: number): Encounter {
-  const { scene, director, floorY } = host
-  const ref = swateArt(scene)
+  const { scene, director, floorY, combat } = host
+  const ref = swateArt(scene, 'bare')
+  const happyRef = swateArt(scene, 'happy')
+  const labelRef = swateLabelArt(scene)
   const sprite = scene.add.sprite(x, floorY, ref.textureKey).setDepth(DEPTH.tiles + 1)
   applySpriteRef(sprite, ref)
+  const label = scene.add.sprite(x + SWATE_LABEL_PIVOT.x, floorY + SWATE_LABEL_PIVOT.y, labelRef.textureKey).setDepth(DEPTH.tiles + 2)
+  applySpriteRef(label, labelRef)
+  label.setOrigin(SWATE_LABEL_PIVOT.originX, SWATE_LABEL_PIVOT.originY)
   const top = floorY - SWATE_HEIGHT
   // The reach covers the table, not the magnifier and the badge that stick out, so it stays clear of
   // the trader's even in a narrow room.
@@ -376,6 +395,54 @@ function spawnSwate(host: EncounterHost, x: number): Encounter {
     bubble.setText(line).setOrigin(0.5, 1).setPosition(x, top - 4).setVisible(true)
     bubbleMs = ms
   }
+
+  const state = createLabelState()
+  const hurtbox = labelZone(x, floorY, new Phaser.Geom.Rectangle())
+  const feet = { x, y: floorY }
+  let wobbleMs = 0
+  let hopMs = 0
+  // The label in the air after the last hit, until it lies on the floor.
+  let falling = false
+  let fallVy = 0
+  let fallSpin = 0
+  let landAt = 0
+  const strike = (hit: HitEvent) => {
+    if (hit.attacker.team !== 'player') return
+    const result = state.hit(clock)
+    if (result === 'ignored') return
+    wobbleMs = LABEL_WOBBLE_MS
+    if (result === 'peeled') return
+    combat.unregister(bystander)
+    applySpriteRef(sprite, happyRef)
+    hopMs = HAPPY_HOP_MS
+    // Switch the pivot to the middle of the label so it can spin where it is.
+    const turn = label.rotation
+    const dx = (0.5 - SWATE_LABEL_PIVOT.originX) * SWATE_LABEL_WIDTH
+    const dy = (0.5 - SWATE_LABEL_PIVOT.originY) * SWATE_LABEL_HEIGHT
+    label.setOrigin(0.5, 0.5).setPosition(label.x + dx * Math.cos(turn) - dy * Math.sin(turn), label.y + dx * Math.sin(turn) + dy * Math.cos(turn))
+    fallVy = -LABEL_POP
+    landAt = floorY - SWATE_LABEL_HEIGHT * 0.25
+    const drop = landAt - label.y
+    const flight = (LABEL_POP + Math.sqrt(LABEL_POP * LABEL_POP + 2 * LABEL_GRAVITY * Math.max(0, drop))) / LABEL_GRAVITY
+    fallSpin = (Math.PI * 2 + LABEL_REST - turn) / flight
+    falling = true
+  }
+  const bystander: Combatant = {
+    id: 'swate-label',
+    team: 'neutral',
+    killer: null,
+    hurtbox: () => hurtbox,
+    facing: () => 1,
+    position: () => feet,
+    isInvulnerable: () => false,
+    isDead: () => false,
+    receiveHit(hit) {
+      strike(hit)
+      return 0
+    },
+  }
+  combat.register(bystander)
+
   return {
     zone,
     action: 'Refine annotations',
@@ -404,7 +471,25 @@ function spawnSwate(host: EncounterHost, x: number): Encounter {
     },
     frame(deltaMs) {
       clock += deltaMs
-      sprite.setY(floorY - Math.abs(Math.sin((clock / SWATE_BOB_MS) * Math.PI)) * SWATE_BOB)
+      wobbleMs = Math.max(0, wobbleMs - deltaMs)
+      const shake = wobbleMs > 0 ? Math.sin(wobbleMs * 0.12) * LABEL_SHAKE : 0
+      hopMs = Math.max(0, hopMs - deltaMs)
+      const hop = hopMs > 0 ? Math.abs(Math.sin((hopMs / HAPPY_HOP_MS) * Math.PI * 2)) * HAPPY_HOP : 0
+      const bob = Math.abs(Math.sin((clock / SWATE_BOB_MS) * Math.PI)) * SWATE_BOB + hop
+      sprite.setPosition(x + shake, floorY - bob)
+      if (falling) {
+        const dt = deltaMs / 1000
+        fallVy += LABEL_GRAVITY * dt
+        const y = label.y + fallVy * dt
+        label.setPosition(label.x + 14 * dt, Math.min(y, landAt)).setRotation(label.rotation + fallSpin * dt)
+        if (y >= landAt) {
+          falling = false
+          label.setRotation(LABEL_REST)
+        }
+      } else if (!state.fallen) {
+        const wobble = Math.sin(wobbleMs * 0.05) * LABEL_WOBBLE * (wobbleMs / LABEL_WOBBLE_MS)
+        label.setPosition(sprite.x + SWATE_LABEL_PIVOT.x, sprite.y + SWATE_LABEL_PIVOT.y).setRotation(state.hits * LABEL_TILT + wobble)
+      }
     },
   }
 }

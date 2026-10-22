@@ -3,7 +3,7 @@ import { DEPTH, PALETTE, SCENE, TILE } from '../../contracts/constants'
 import { ENCOUNTER_SLOTS, rollEncounters } from '../../model/run'
 import { relationLabel, weaponRelation } from '../../model/progression'
 import type { Combatant } from '../../contracts/combat'
-import { applySpriteRef, datenkrakeArmArt, datenkrakeArt, doorArt, stallArt, swateArt, traderArt, traderFighterArt } from '../art'
+import { applySpriteRef, datenkrakeArmArt, datenkrakeArt, doorArt, stallArt, swateArt, swateLabelArt, traderArt, traderFighterArt } from '../art'
 import type { Arena } from '../bosses'
 import type { View } from '../view'
 import { buildArena } from './arena'
@@ -96,7 +96,11 @@ export class WaystationScene extends GameplayScene {
       datenkrakeArt(this)
       datenkrakeArmArt(this)
     }
-    if (kinds.includes('swate')) swateArt(this)
+    if (kinds.includes('swate')) {
+      swateArt(this, 'bare')
+      swateArt(this, 'happy')
+      swateLabelArt(this)
+    }
     const host: EncounterHost = {
       scene: this,
       director,

@@ -386,11 +386,21 @@ replaying the stat log without it, as for the Datenkrake. The swap goes into the
 the run recap as "Refined: Old -> New" with its price, and the stack counts the build reports
 (`statStacks`) follow.
 
+The ARCitISA label on its art comes off. In the waystation the label is a sprite of its own, and a
+neutral bystander covers it with a hit zone of the label plus 10 units on every side
+(`labelZone`, `LABEL_HIT_PAD`), like the FAIR trader's. Light and heavy swings and shots of the mage
+all land there. Four hits (`LABEL_HITS`) take it off, and hits within 150 ms of a counted one are
+the same swing (`createLabelState`). Each hit tilts the label further, wobbles it and shakes SWATE;
+the last drops it to the floor, where it stays, and SWATE shows a smiling face and hops. The hits
+do no damage, and the refine screen, the prices and the swaps do not change. The next SWATE starts
+with the label on.
+
 | What | Where |
 |---|---|
 | Swaps per boss, cost factor | `model/progression/swate.ts` (`SWAPS_PER_BOSS`, `SWAP_COST_FACTOR`) |
 | SWATE lines | `model/progression/swate.ts` (`SWATE_LINES`) |
 | Art and its size | `phaser/art/swate.ts` |
+| The label that falls off | `phaser/scenes/swateLabel.ts`, `spawnSwate` in `phaser/scenes/encounters.ts` |
 | Screen | `phaser/scenes/SwateScene.ts` |
 
 ## Phantoms
