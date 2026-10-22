@@ -465,6 +465,30 @@ the summoner use the same tell.
 - A blinker waits 300 ms after it lands before it attacks. A summoner puffs up for 300 ms before its
   minions appear, and a minion cannot hurt by touch for its first 400 ms.
 
+### Melee mobs press the player
+
+A ranged mage should not be able to kill a melee mob from afar, so ground melee mobs (claw, whip,
+spear and shield, not the beetle, bat, wisp or turret) close the distance. The rules are pure
+helpers in `phaser/mobs/pressure.ts`, with numbers in `tuning.ts`.
+
+- A melee mob walks at a player who is out of its swing from up to 260 units away, even when its own
+  aggro range is shorter (it keeps coming out to 15 percent more once it has started). It stops
+  where the swing reaches, half the weapon range from the player. Patrolling mobs keep their route.
+- When the wind-up ends and the player is out of reach (a back-step, a kept range), the mob dashes
+  toward them before the swing: up to 56 units over 140 ms, a golem 36 units over 170 ms. The dash
+  ends half the weapon range from the player, at a wall, or before the front edge would leave the
+  ground, so it never carries the mob off a ledge. The hitbox travels with the mob. The wind-up is
+  the tell and is unchanged. No dash starts when the player is already in reach, behind the mob or
+  on another level. Touch damage during the dash stays capped at the weapon's damage, since the dash
+  is not a body charge. A back-step of up to about 40 units (claw) or 50 (spear) is caught by it, a
+  dash or a jump still dodges as before.
+- A melee mob that stands on a platform with the player at least a tile lower and out of reach waits
+  0.9 s, then comes down: it walks off the edge toward the player (at 50 units per second or its
+  speed, if that is higher) or drops through the one-way plank it stands on. It steps off only where
+  there is ground within 4 tiles below, so a pit or the bottom of the level never gets a mob, and it
+  stays put when a wall blocks the way. After a drop it waits 1.5 s before it tries again.
+  Crawlers never leave their platform, and bows, wands, flasks, bombs and turrets keep theirs.
+
 ## Attack variants
 
 Light presses walk the light string. A light press during a move of the string waits for the
@@ -711,8 +735,9 @@ Click the canvas to give it keyboard focus.
 | Run, jump, dash, coyote time, jump buffer | `model/input/motor.ts` (`MOTOR`) |
 | Hop limit for the air heavy, Technical Replicates plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
-| Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |
+| Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, melee approach range, lunge and platform drop, blink and bomb timers) | `phaser/mobs/tuning.ts` |
 | Mob wind-up poses, ranged lead, contact cap, back-away and dive rules | `phaser/mobs/windup.ts`, `phaser/mobs/weaponPose.ts` |
+| Melee approach, lunge and platform drop rules | `phaser/mobs/pressure.ts` |
 | Node boss hp (`400 * (1 + 0.35 * segment index)`, 15% more with a dense theme) and XP | `model/content/boss.ts` |
 | Final boss hp (`600 * segments`) | `model/content/boss.ts` |
 | Boss slots, damage multiplier and hit cap | `model/content/bossGenome.ts` |
