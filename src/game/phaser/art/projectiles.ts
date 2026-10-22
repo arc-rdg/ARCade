@@ -139,7 +139,7 @@ const DEFS: Record<ProjectileArt, ProjectileDef> = {
     width: 32,
     height: 32,
     draw(pen) {
-      const edge = { line: MINION_EDGE, weight: 1, rough: 0.2 }
+      const edge = { line: MINION_EDGE, weight: 1.5, rough: 0.2 }
       pen.trace([[9, 11], [12, 15], [10.5, 18], [14, 22]], edge)
       pen.trace([[22, 21], [19.5, 23.5], [21, 27]], edge)
       pen.trace([[12, 15], [15, 15.6]], edge)
