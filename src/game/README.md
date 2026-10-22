@@ -853,8 +853,8 @@ same game. Without a plan the card offers no Start run.
 - `TutorialHudScene` draws the step card, the pause card (Resume, Skip step, Settings, Back to menu) and the finish card. While
   the pointer is over one of its buttons the room captures the mouse, so the click is not an attack.
 - `trainingDummy.ts` makes the calm and the angry dummy. They never die. The calm one shows the combo count and the damage
-  per second of the last 3 s. The angry one swings only during the Dodge step and in free play: a 750 ms telegraph on the
-  floor, then a 150 ms sweep. A dash that overlaps the sweep with its i-frames fills the Dodge step.
+  per second of the last 3 s. The angry one swings only during the Dodge step and in free play: a 750 ms wind-up (it leans back
+  at once, flashes for 60 ms and takes the mobs' warm tint), then a 150 ms sweep. A dash that overlaps the sweep with its i-frames fills the Dodge step.
 - Open `Game/Dev/Tutorial` in Storybook to play it. `Shell/Arcade` has `FirstVisit` and `CompactFirstVisit` for the start screen.
 
 ## Tests

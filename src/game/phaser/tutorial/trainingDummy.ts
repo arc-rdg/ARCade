@@ -1,10 +1,10 @@
 import Phaser from 'phaser'
-import type { ScribbleArt } from '../../contracts/art'
 import type { Combatant, CombatWorld, HitEvent } from '../../contracts/combat'
 import { DEPTH, PALETTE } from '../../contracts/constants'
-import { createReadout, createSwingCycle, createWobble } from '../../model/tutorial/dummy'
+import { createReadout, createSwingCycle, createWobble, SWING_TELEGRAPH_MS } from '../../model/tutorial/dummy'
 import { applySpriteRef, DUMMY_HEIGHT, DUMMY_WIDTH, dummyArt, type DummyMood } from '../art'
-import { createTelegraphPool, type TelegraphPool, type Zone } from '../bosses/telegraph'
+import { TELL_FLASH_MS } from '../mobs/tuning'
+import { windupForm } from '../mobs/windup'
 import { addText } from '../scenes/ui'
 import type { Player } from '../player/Player'
 
@@ -14,14 +14,13 @@ const DAMAGE = 10
 // The angry dummy's sweep: from just in front of it to this far ahead, at about the player's height.
 const SWING = { from: 4, reach: 62, height: 40 }
 const SWING_KNOCKBACK = { x: 160, y: -120 }
-// How far the angry dummy leans back during the telegraph, and how far it throws itself forward.
-const LEAN_BACK = 0.28
+// How far the angry dummy leans back during the wind-up, and how far it throws itself forward.
+const LEAN_BACK = 0.55
 const LEAN_FORWARD = 0.34
 
 export interface TrainingDummyDeps {
   scene: Phaser.Scene
   combat: CombatWorld
-  art: ScribbleArt
   player: Player
   // The angry dummy's swing reached the player while a dash made the player untouchable.
   onDodged?: () => void
@@ -42,7 +41,7 @@ export interface TrainingDummy extends Combatant {
 // A target that shows the damage it takes and never dies. The angry one also swings at the player,
 // never moves, and only while the room asks for it.
 export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: number, mood: DummyMood): TrainingDummy {
-  const { scene, combat, art, player } = deps
+  const { scene, combat, player } = deps
   const ref = dummyArt(scene, mood)
   const sprite = scene.add.sprite(x, floorY, ref.textureKey).setDepth(DEPTH.enemies)
   applySpriteRef(sprite, { ...ref, width: DUMMY_WIDTH, height: DUMMY_HEIGHT })
@@ -60,11 +59,12 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
   const hurtbox = new Phaser.Geom.Rectangle(x - HURTBOX.width / 2, floorY - HURTBOX.height, HURTBOX.width, HURTBOX.height)
   const feet = { x, y: floorY }
   const zoneBox = new Phaser.Geom.Rectangle()
-  const telegraphs: TelegraphPool | null = mood === 'angry' ? createTelegraphPool(scene, art) : null
-  let zone: Zone | null = null
+  const angry = mood === 'angry'
   let facing: 1 | -1 = -1
   let flashMs = 0
-  let flashing = false
+  // The body tint: 0 none, 1 hit flash, 2 wind-up onset flash, 3 warm wind-up tint.
+  let tint = 0
+  let tellMs = 0
   let dodged = false
   let destroyed = false
   let frozen = false
@@ -72,26 +72,10 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
   let attack: { cancel(): void } | null = null
   let leanForward = 0
 
-  if (telegraphs) art.telegraph(scene, 'rect', SWING.reach - SWING.from, SWING.height)
-
   // The world box of the swing, in front of the dummy.
   const swingBox = () => {
     const left = facing === 1 ? x + SWING.from : x - SWING.reach
     return zoneBox.setTo(left, floorY - SWING.height, SWING.reach - SWING.from, SWING.height)
-  }
-
-  const showZone = () => {
-    if (!telegraphs) return
-    zone?.release()
-    const box = swingBox()
-    zone = telegraphs.show({
-      shape: 'rect',
-      x: facing === 1 ? box.left : box.right,
-      y: box.centerY,
-      w: box.width,
-      h: box.height,
-      fill: facing === 1 ? 'right' : 'left',
-    })
   }
 
   const dummy: TrainingDummy = {
@@ -114,17 +98,16 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
       frozen = next
     },
     update(dtMs) {
-      if (destroyed || !telegraphs) return
+      if (destroyed || !angry) return
       const before = swing.phase()
       const phase = swing.step(dtMs)
       if (before !== 'telegraph' && phase === 'telegraph') {
         // Turns to the player for each swing, so the zone is never behind it.
         facing = player.hurtbox().centerX < x ? -1 : 1
         dodged = false
-        showZone()
+        tellMs = TELL_FLASH_MS
       }
       if (swing.startedActive()) {
-        zone?.activate()
         attack = combat.spawnHitbox({
           owner: dummy,
           shape: { kind: 'rect', x: SWING.from, y: -SWING.height, w: SWING.reach - SWING.from, h: SWING.height },
@@ -142,33 +125,32 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
         deps.onDodged?.()
       }
       if (before === 'active' && phase === 'recover') {
-        zone?.fade()
-        zone = null
         attack = null
       }
     },
     frame(deltaMs) {
       if (destroyed) return
       const now = scene.time.now
-      if (telegraphs) {
-        telegraphs.update(now)
-        if (swing.phase() === 'telegraph') zone?.setProgress(swing.telegraphProgress())
-        // Leans back while the zone fills, snaps forward at the sweep and eases upright.
-        const progress = swing.telegraphProgress()
-        const phase = swing.phase()
+      const phase = swing.phase()
+      if (angry) {
+        // Leans back at once and holds it, snaps forward at the sweep and eases upright.
         if (phase === 'telegraph') leanForward = 0
         else if (phase === 'recover') leanForward = Math.max(0, leanForward - deltaMs / 260)
-        const lean = phase === 'active' ? LEAN_FORWARD : phase === 'telegraph' ? -LEAN_BACK * progress : LEAN_FORWARD * leanForward
+        const back = phase === 'telegraph' ? -LEAN_BACK * windupForm(swing.telegraphProgress() * SWING_TELEGRAPH_MS, SWING_TELEGRAPH_MS) : 0
+        const lean = phase === 'active' ? LEAN_FORWARD : phase === 'telegraph' ? back : LEAN_FORWARD * leanForward
         sprite.setRotation(wobble.angle() + facing * lean)
+        if (phase === 'telegraph' && !frozen) tellMs = Math.max(0, tellMs - deltaMs)
       } else {
         sprite.setRotation(wobble.angle())
       }
       if (!frozen) wobble.step(deltaMs)
       flashMs = Math.max(0, flashMs - deltaMs)
-      const flash = flashMs > 0
-      if (flash !== flashing) {
-        flashing = flash
-        if (flash) sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL)
+      const code = flashMs > 0 ? 1 : phase === 'telegraph' ? (tellMs > 0 ? 2 : 3) : 0
+      if (code !== tint) {
+        tint = code
+        if (code === 1) sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL)
+        else if (code === 2) sprite.setTint(0xff7a3d).setTintMode(Phaser.TintModes.FILL)
+        else if (code === 3) sprite.setTint(0xffa070).setTintMode(Phaser.TintModes.MULTIPLY)
         else sprite.clearTint()
       }
       if (readout.update(now)) {
@@ -185,9 +167,7 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
       if (destroyed) return
       destroyed = true
       attack?.cancel()
-      zone?.release()
       combat.unregister(dummy)
-      telegraphs?.destroy()
       sprite.destroy()
       label.destroy()
     },

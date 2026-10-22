@@ -129,7 +129,7 @@ export interface SwingCycle {
   // Advances the clock and returns the phase.
   step(dtMs: number): SwingPhase
   phase(): SwingPhase
-  // 0 to 1 through the telegraph, for the lean and the floor zone.
+  // 0 to 1 through the telegraph, for the lean.
   telegraphProgress(): number
   // True once, on the step the active phase begins.
   startedActive(): boolean
