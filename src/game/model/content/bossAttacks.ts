@@ -81,7 +81,7 @@ export const KIND_TEXT: Record<BossAttackKind, string> = {
   charge: 'a dash along the floor',
   rain: 'drops from above',
   beam: 'a straight beam',
-  summon: 'calls two minions',
+  summon: 'calls two spiked minions you can destroy',
   shockwave: 'floor waves to both walls',
   pillars: 'columns burst from the floor',
 }

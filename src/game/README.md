@@ -117,7 +117,10 @@ them out:
   250), and the teleport mechanic lands 60 to 110 units from a mage on a platform.
 
 The spill lands on the platform the mage stands on and covers most of it, with its usual 0.9 s
-warning. The minions walk at 54 units per second, a quarter of the mage's run, and chase a mage on a
+warning. The minions are red-orange spiked balls, 32 units across, with an eye that follows the mage. A new one
+grows in for 450 ms with a ring and a "!" over it and cannot move or hurt until then. The hurtbox is
+32 wide and the touch box 28. A hit squashes one, below half its hp it shows cracks, and it dies in
+a burst of sparks with no reward. They walk at 54 units per second, a quarter of the mage's run, and chase a mage on a
 platform: they walk to a spot just beside it, crouch for 0.38 s and hop up in 0.56 s. A minion on a
 platform the mage has left walks off the edge and drops. The shots of the fan and the mirror aim at
 the middle of the mage, height included, and end at the walls, the floor or the ceiling.

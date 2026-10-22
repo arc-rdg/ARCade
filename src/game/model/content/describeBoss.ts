@@ -21,7 +21,7 @@ export const MECHANIC_TEXT: Record<BossMechanicKind, { name: string; effect: str
   armoredFront: { name: 'Armored front', effect: 'hits from the front deal 40% less, hit it from behind or above' },
   enrage: { name: 'Overclocked', effect: 'below 40% hp its attacks recharge 30% faster' },
   phaseShift: { name: 'Phase shift', effect: 'at half hp it swaps its light attacks for others' },
-  summoner: { name: 'Summoner', effect: 'calls a minion every few seconds' },
+  summoner: { name: 'Summoner', effect: 'calls a spiked minion every few seconds; it hurts on touch, hit it to destroy it' },
   hazard: { name: 'Spill', effect: 'marks a spill under you that burns a moment later' },
   teleport: { name: 'Teleport', effect: 'blinks to the other side of you' },
   shieldPulse: { name: 'Shield pulse', effect: 'after a light attack it may raise a shield that blocks hits for 1.4 s' },

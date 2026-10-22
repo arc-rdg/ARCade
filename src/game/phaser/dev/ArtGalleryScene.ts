@@ -20,7 +20,7 @@ const SIZES = ['small', 'medium', 'large'] as const
 const ARCHETYPES: BossArchetype[] = ['rootTreant', 'specimenJar', 'reagentGolem', 'glitchDaemon']
 const NODE_KIND: Record<BossArchetype, IoKind> = { rootTreant: 'source', specimenJar: 'sample', reagentGolem: 'material', glitchDaemon: 'data' }
 const PLAYER_WEAPONS: PlayerWeaponId[] = ['staff', 'wand', 'pipettePistol', 'centrifugeDisc', 'scalpel', 'sequenceWhip', 'beakerHammer', 'bunsenStaff', 'petriShield', 'arcitect', 'arcCommander', 'gitLfs', 'publicationPress']
-const PROJECTILES: ProjectileArt[] = ['bolt', 'droplet', 'disc', 'arrow', 'bomb', 'flame', 'orb']
+const PROJECTILES: ProjectileArt[] = ['bolt', 'droplet', 'disc', 'arrow', 'bomb', 'flame', 'orb', 'minion', 'minionCrack', 'minionRing', 'minionChip', 'minionSpark']
 const TELEGRAPHS: { shape: TelegraphArt; w: number; h: number }[] = [
   { shape: 'rect', w: 80, h: 40 },
   { shape: 'circle', w: 56, h: 56 },

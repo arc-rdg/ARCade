@@ -16,6 +16,7 @@ interface ProjectileDef {
 }
 
 const thin = { weight: 0.8 }
+const MINION_EDGE = '#3b3340'
 
 const DEFS: Record<ProjectileArt, ProjectileDef> = {
   bolt: {
@@ -116,6 +117,58 @@ const DEFS: Record<ProjectileArt, ProjectileDef> = {
       pen.ellipse(3.8, 3.8, 1.8, 1.8, { tint: '#ffffff', line: 'none' })
     },
   },
+  // The boss minion: a spiked red-orange ball with an eye that looks right. The sprite is flipped
+  // to look left. It has its own dark outline and a warm glow so it stays readable on every
+  // backdrop.
+  minion: {
+    width: 32,
+    height: 32,
+    draw(pen) {
+      const edge = { line: MINION_EDGE, weight: 1.4 }
+      pen.glow(16, 16, 16, 'rgba(240, 110, 60, 0.45)')
+      pen.poly(starPts(16, 16, 15.2, 10.6, 8), { tint: '#f08a3c', ...edge, rough: 0.5 })
+      pen.ellipse(16, 16, 16, 16, { tint: '#e5484d', ...edge, rough: 0.4 })
+      pen.ellipse(19.2, 14.6, 8, 8, { tint: '#ffffff', line: MINION_EDGE, weight: 1, rough: 0.2 })
+      pen.dot(20.6, 14.8, 2.3, MINION_EDGE)
+      pen.dot(21.2, 14.1, 0.7, '#ffffff')
+      pen.line(14.6, 9.4, 23.4, 11.6, { line: MINION_EDGE, weight: 1.2, rough: 0.2 })
+    },
+  },
+  // Cracks laid over the minion once it is below half its hp.
+  minionCrack: {
+    width: 32,
+    height: 32,
+    draw(pen) {
+      const edge = { line: MINION_EDGE, weight: 1, rough: 0.2 }
+      pen.trace([[9, 11], [12, 15], [10.5, 18], [14, 22]], edge)
+      pen.trace([[22, 21], [19.5, 23.5], [21, 27]], edge)
+      pen.trace([[12, 15], [15, 15.6]], edge)
+    },
+  },
+  // The ring that widens while a minion spawns and flashes when it dies.
+  minionRing: {
+    width: 44,
+    height: 44,
+    draw(pen) {
+      pen.ellipse(22, 22, 40, 40, { line: '#f08a3c', weight: 1.6, rough: 0.5 })
+    },
+  },
+  // The "!" over a spawning minion.
+  minionChip: {
+    width: 12,
+    height: 14,
+    draw(pen) {
+      pen.rect(1, 1, 10, 12, { tint: '#fff3c4', line: MINION_EDGE, weight: 1, rough: 0.2 })
+      pen.text(['!'], 6, 7.4, 9, 8, 0, '#e5484d')
+    },
+  },
+  minionSpark: {
+    width: 6,
+    height: 6,
+    draw(pen) {
+      pen.ellipse(3, 3, 4.4, 4.4, { tint: '#f08a3c', line: MINION_EDGE, weight: 0.8, rough: 0.2 })
+    },
+  },
 }
 
 export const PROJECTILE_KINDS = Object.keys(DEFS) as ProjectileArt[]
@@ -125,6 +178,8 @@ export function projectile(scene: Phaser.Scene, kind: ProjectileArt): SpriteRef 
   const centre = { x: 0, y: -def.height / 2 }
   return spriteFrom(scene, {
     key: `scribble:projectile:${kind}`,
+    // The minion boils, its overlays are still.
+    variants: kind !== 'minion' && kind.startsWith('minion') ? 1 : undefined,
     width: def.width,
     height: def.height,
     anchors: { weapon: centre, head: centre },
