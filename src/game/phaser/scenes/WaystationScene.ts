@@ -147,6 +147,7 @@ export class WaystationScene extends GameplayScene {
       x,
       counterY,
     )
+    for (const encounter of this.encounters) encounter.fight?.(true)
     if (this.ctx.active) {
       this.ctx.active.boss = this.fight.hud
       this.ctx.active.bossName = TRADER_BOSS_NAME
@@ -158,6 +159,7 @@ export class WaystationScene extends GameplayScene {
     const line = fight.defeatLine()
     fight.destroy()
     this.fight = null
+    for (const encounter of this.encounters) encounter.fight?.(false)
     if (this.ctx.active) this.ctx.active.boss = null
     this.director.setHp(this.player.hp())
     const loot = this.director.lootTrader(this.index)

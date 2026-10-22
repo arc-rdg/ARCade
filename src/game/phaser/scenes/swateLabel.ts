@@ -38,6 +38,18 @@ export function createLabelState(needed = LABEL_HITS, cooldownMs = LABEL_HIT_COO
   }
 }
 
+interface Registry<T> {
+  register(combatant: T): void
+  unregister(combatant: T): void
+}
+
+// Takes the label out of the combat world while a fight runs, so a hostile fighter's hits and the
+// mage's shots at him pass through it, and puts it back afterwards if it is still on.
+export function labelFight<T>(combat: Registry<T>, bystander: T, state: Pick<LabelState, 'fallen'>, on: boolean): void {
+  if (on) combat.unregister(bystander)
+  else if (!state.fallen) combat.register(bystander)
+}
+
 interface Box {
   x: number
   y: number

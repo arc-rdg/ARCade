@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SWATE_HEIGHT, SWATE_LABEL } from '../../../src/game/phaser/art/swate'
-import { createLabelState, LABEL_HIT_COOLDOWN_MS, LABEL_HITS, labelZone } from '../../../src/game/phaser/scenes/swateLabel'
+import { createLabelState, LABEL_HIT_COOLDOWN_MS, LABEL_HITS, labelFight, labelZone } from '../../../src/game/phaser/scenes/swateLabel'
 
 const STEP = LABEL_HIT_COOLDOWN_MS + 1
 
@@ -56,5 +56,31 @@ describe('the hit zone of the label', () => {
 
   it('does not reach below the floor', () => {
     expect(zone.y + zone.height).toBeLessThanOrEqual(floor)
+  })
+})
+
+describe('the label during the trader fight', () => {
+  const world = () => {
+    const live = new Set<string>(['label'])
+    return { live, register: (c: string) => live.add(c), unregister: (c: string) => live.delete(c) }
+  }
+
+  it('leaves the combat world while the fight runs and returns after it', () => {
+    const combat = world()
+    const state = createLabelState()
+    labelFight(combat, 'label', state, true)
+    expect(combat.live.has('label')).toBe(false)
+    labelFight(combat, 'label', state, false)
+    expect(combat.live.has('label')).toBe(true)
+  })
+
+  it('stays out after the fight once the label has fallen', () => {
+    const combat = world()
+    const state = createLabelState()
+    for (let i = 0; i < LABEL_HITS; i++) state.hit(i * STEP)
+    combat.unregister('label')
+    labelFight(combat, 'label', state, true)
+    labelFight(combat, 'label', state, false)
+    expect(combat.live.has('label')).toBe(false)
   })
 })

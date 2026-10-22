@@ -8,7 +8,7 @@ import { cssColor } from '../color'
 import { acquireBubble } from '../mobs/bubbles'
 import type { Player } from '../player/Player'
 import type { RunDirector } from './RunDirector'
-import { createLabelState, labelZone } from './swateLabel'
+import { createLabelState, labelFight, labelZone } from './swateLabel'
 import { addText } from './ui'
 
 // The encounters of the waystation. Each kind of `model/run/encounters.ts` has a spawner here that
@@ -67,6 +67,8 @@ export interface Encounter {
   // True while something is said over the encounter. The prompt waits for it.
   talking(): boolean
   update(dtMs: number): void
+  // The trader's fight started or ended in this waystation.
+  fight?(on: boolean): void
   // Every rendered frame, also while the world is held.
   frame?(deltaMs: number): void
 }
@@ -464,6 +466,9 @@ function spawnSwate(host: EncounterHost, x: number): Encounter {
       say(director.swateLine('arrive'), CALL_OUT_MS)
     },
     talking: () => bubbleMs > 0,
+    fight(on) {
+      labelFight(combat, bystander, state, on)
+    },
     update(dtMs) {
       if (bubbleMs <= 0) return
       bubbleMs -= dtMs
