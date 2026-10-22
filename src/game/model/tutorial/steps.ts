@@ -27,7 +27,7 @@ export type StepId = 'walk' | 'jump' | 'drop' | 'dash' | 'dodge' | 'attack' | 'c
 
 export const WALK_DISTANCE = 4 * TILE
 // A hop stays under this peak, a high jump goes over the other.
-export const HOP_MAX_RISE = 1.75 * TILE
+export const HOP_MAX_RISE = 2.5 * TILE
 export const HIGH_MIN_RISE = 3 * TILE
 // Smaller rises are a step off a ledge, not a jump.
 const MIN_RISE = 6

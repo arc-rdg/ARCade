@@ -71,6 +71,7 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
   private prevX = 0
   private wasGrounded = true
   private takeoffBottom = 0
+  private prevBottom = 0
   private peakBottom = 0
   private onPlank = false
   private prevPhase = 'idle'
@@ -181,7 +182,7 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
 
     const box = this.player.hurtbox()
     this.prevX = box.centerX
-    this.takeoffBottom = this.peakBottom = box.bottom
+    this.takeoffBottom = this.peakBottom = this.prevBottom = box.bottom
     this.ctx.cursors.setLight('staff')
     this.ctx.cursors.setHeld(false)
     if (this.ctx.externalPause) this.setHold('external', true)
@@ -253,10 +254,15 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
     // The rise of a jump: from where the feet left the ground to their highest point.
     const grounded = player.isGrounded()
     if (!grounded) {
-      if (this.wasGrounded) this.takeoffBottom = this.peakBottom = bottom
+      // The feet of the step before, because this one already rose a little.
+      if (this.wasGrounded) {
+        this.takeoffBottom = this.prevBottom
+        this.peakBottom = bottom
+      }
       else if (bottom < this.peakBottom) this.peakBottom = bottom
     }
     this.wasGrounded = grounded
+    this.prevBottom = bottom
 
     // Standing on the plank, then going down through it.
     const overPlank = x > PLANK.x - PLANK_SLACK && x < PLANK.x + PLANK.w + PLANK_SLACK
@@ -360,6 +366,7 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
     const paused = !this.holds.has('pause')
     this.setHold('pause', paused)
     this.ctx.tutorialHud?.showPause(paused, this.canSkip())
+    this.ctx.emit({ type: 'paused', paused })
     if (paused) this.report(this.pausedFact)
   }
 
@@ -428,6 +435,7 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
     if (!this.holds.has('pause')) return
     this.setHold('pause', false)
     this.ctx.tutorialHud?.showPause(false, false)
+    this.ctx.emit({ type: 'paused', paused: false })
   }
 
   skipStep() {

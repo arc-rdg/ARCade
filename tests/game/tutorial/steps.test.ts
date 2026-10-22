@@ -56,6 +56,12 @@ describe('jump', () => {
     expect(tutorial.complete()).toBe(true)
   })
 
+  it('counts a normal key tap as a hop', () => {
+    const tutorial = at('jump')
+    expect(tutorial.report({ kind: 'landed', rise: 50 })).toBe(true)
+    expect(tutorial.ticks()).toEqual([true, false])
+  })
+
   it('counts neither a step off a ledge nor a jump between a hop and a high jump', () => {
     const tutorial = at('jump')
     expect(tutorial.report({ kind: 'landed', rise: 2 })).toBe(false)
