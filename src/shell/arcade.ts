@@ -1,13 +1,15 @@
 import mageUrl from '../game/assets/ARCMage.png'
 import { indexProvenance, type ArcadeProvenance } from '../arc/provenance/input'
 import type { GameEvent, GameHandle } from '../game/contracts/events'
+import type { RunPlan } from '../game/contracts/run'
 import { ACTIONS, type Action, type Binding, type Bindings } from '../game/contracts/input'
 import { BINDINGS_STORAGE_KEY, bindingLabel, DEFAULT_BINDINGS, findConflicts, loadBindings, saveBindings } from '../game/model/input'
 import { planRun } from '../game/model/run'
 import { barList } from './barList'
-import { alertIcon, exitFullscreenIcon, fullscreenIcon, gearIcon, h } from './dom'
+import { alertIcon, dummyIcon, exitFullscreenIcon, fullscreenIcon, gearIcon, h } from './dom'
 import { boxFor, observeSize, type Box } from './layout'
 import { scene, sparkle } from './scenery'
+import { readFlag, writeFlag } from './storage'
 import { acquireStyles } from './styles'
 import { loadTrimmedImage } from './trimmedImage'
 import { ARCADE_VERSION } from './version'
@@ -21,6 +23,9 @@ export interface ArcadeOptions {
   autoStart?: boolean
   // Where the key bindings are kept. Default 'arc-mage.bindings.v1'; null keeps them for this session only.
   bindingsStorageKey?: string | null
+  // Where the note that the player has opened Training is kept. Default 'arc-mage.tutorial.v1'; null
+  // keeps it for this session only.
+  tutorialStorageKey?: string | null
   // Shows the fullscreen button. Default true, and always hidden where the browser has no fullscreen.
   fullscreen?: boolean
   onEvent?: (event: GameEvent) => void
@@ -50,6 +55,9 @@ const ACTION_NAMES: Record<Action, string> = {
   ability4: 'Ability 4',
   pause: 'Pause',
 }
+
+const TUTORIAL_STORAGE_KEY = 'arc-mage.tutorial.v1'
+let instances = 0
 
 const BINDING_SLOTS = [0, 1]
 const FINE_POINTER = '(any-pointer: fine)'
@@ -82,6 +90,8 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   const win = doc.defaultView ?? window
   const releaseStyles = acquireStyles(doc)
   const storageKey = options.bindingsStorageKey === undefined ? BINDINGS_STORAGE_KEY : options.bindingsStorageKey
+  const tutorialKey = options.tutorialStorageKey === undefined ? TUTORIAL_STORAGE_KEY : options.tutorialStorageKey
+  const hintId = `arcade-training-hint-${++instances}`
 
   const root = h('div', { class: 'arcade-root' })
   const stage = h('div', { class: 'arcade-stage' })
@@ -100,6 +110,10 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
   let plan = planRun(index, title, seed)
   let bindings: Bindings = storageKey === null ? DEFAULT_BINDINGS : loadBindings(storageKey)
   let mode: Mode = 'menu'
+  // The playing mode shows the Training room instead of a run.
+  let training = false
+  // Set once the Training room has loaded. The "New here?" tag goes away with it.
+  let trainingSeen = tutorialKey === null ? false : readFlag(tutorialKey)
   let box: Box | null = null
   let mage: string | null = null
   let screenEl: HTMLElement | null = null
@@ -178,8 +192,9 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     if (restore) restoreFocus()
   }
 
-  const setMode = (next: Mode) => {
+  const setMode = (next: Mode, nextTraining = false) => {
     const from = mode
+    const fromTraining = training
     closeOverlay(false)
     chrome?.remove()
     chrome = null
@@ -190,12 +205,15 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     screenEl = null
     capture = null
     mode = next
-    if (next === 'playing' && plan) disposeScreen = renderPlaying(plan)
+    training = next === 'playing' && nextTraining
+    if (next === 'playing' && (plan || nextTraining)) disposeScreen = renderPlaying(plan, nextTraining)
     else if (next === 'settings') disposeScreen = renderSettings()
     else {
       mode = 'menu'
+      training = false
       renderMenu()
       if (from === 'settings') root.querySelector<HTMLElement>('[data-action="settings"]')?.focus()
+      else if (from === 'playing' && fromTraining) root.querySelector<HTMLElement>('[data-action="training"]')?.focus()
     }
   }
 
@@ -203,6 +221,12 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     bindings = next
     if (storageKey !== null) saveBindings(next, storageKey)
     sendToGame?.(next)
+  }
+
+  const markTrainingSeen = () => {
+    if (trainingSeen) return
+    trainingSeen = true
+    if (tutorialKey !== null) writeFlag(tutorialKey)
   }
 
   const mageFigure = (src: string) =>
@@ -218,6 +242,15 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
       rebuildMenu()
     }
     const newPathButton = () => h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'new-path', onclick: newPath }, 'New path')
+    const startTraining = () => setMode('playing', true)
+    const trainingTag = () => (trainingSeen ? null : h('span', { class: 'arcade-new', id: hintId }, 'New here?'))
+    const trainingButton = () =>
+      h(
+        'span',
+        { class: 'arcade-training' },
+        h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'training', 'aria-describedby': trainingSeen ? null : hintId, onclick: startTraining }, 'Training'),
+        trainingTag(),
+      )
 
     let actions: HTMLElement
     if (fine) {
@@ -225,6 +258,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
         'div',
         { class: 'arcade-actions' },
         h('button', { type: 'button', class: 'arcade-btn arcade-btn-start', 'data-action': 'start', onclick: () => setMode('playing') }, 'Start run'),
+        !compact && trainingButton(),
         !compact && newPathButton(),
         !compact && h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'settings', onclick: () => setMode('settings') }, 'Settings'),
       )
@@ -252,6 +286,8 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
           h('span', {}, 'This ARC has no provenance yet. Annotate a study or assay table to open the path for ARCade.'),
         ),
       )
+      // Training needs no path.
+      if (fine && !compact) content.append(h('div', { class: 'arcade-actions' }, trainingButton()))
     } else if (compact) {
       const summary = `${plan.segments.length} steps · ${totalAnnotations} monsters · quest: ${title}`
       content.append(h('p', { class: 'arcade-summary', title: `${plan.segments.length} steps, ${totalAnnotations} monsters, quest: ${title}` }, summary), actions)
@@ -320,8 +356,26 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
           `v${ARCADE_VERSION}`,
         )
       : null
+    const trainingIcon =
+      compact && fine
+        ? h(
+            'button',
+            {
+              type: 'button',
+              class: 'arcade-fullscreen arcade-training-icon',
+              'data-action': 'training',
+              'aria-label': 'Training',
+              'aria-describedby': trainingSeen ? null : hintId,
+              title: 'Training',
+              onclick: startTraining,
+            },
+            dummyIcon(),
+          )
+        : null
+    const compactTag = trainingIcon && trainingTag()
+    compactTag?.classList.add('arcade-new-chrome')
     chrome?.remove()
-    chrome = h('div', { class: 'arcade-chrome' }, versionButton, settingsButton)
+    chrome = h('div', { class: 'arcade-chrome' }, versionButton, trainingIcon, compactTag, settingsButton)
     chrome.style.display = 'contents'
     if (overlay) chrome.toggleAttribute('inert', true)
     stage.after(chrome)
@@ -558,7 +612,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     }
   }
 
-  function renderPlaying(runPlan: NonNullable<typeof plan>): () => void {
+  function renderPlaying(runPlan: RunPlan | null, tutorial: boolean): () => void {
     const host = h('div', { class: 'arcade-host', role: 'group', 'aria-label': 'ARCade game' })
     const notices = h('div', { class: 'arcade-notices' })
     notices.style.display = 'contents'
@@ -668,9 +722,10 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
         stopListening = game.on((event: GameEvent) => {
           options.onEvent?.(event)
           if (event.type === 'settingsRequested') openPlayingSettings()
+          if (event.type === 'tutorialStarted') markTrainingSeen()
           if (event.type !== 'menuRequested') return
           if (event.choice === 'retry') {
-            game.send({ type: 'start', plan: runPlan })
+            if (runPlan) game.send({ type: 'start', plan: runPlan })
             return
           }
           // The game is torn down after the event, not inside the scene that sent it.
@@ -682,7 +737,8 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
             setMode('menu')
           })
         })
-        game.send({ type: 'start', plan: runPlan })
+        if (tutorial) game.send({ type: 'startTutorial', plan: runPlan })
+        else if (runPlan) game.send({ type: 'start', plan: runPlan })
         syncPause()
         if (box) game.resize(box.width, box.height)
         ready = true

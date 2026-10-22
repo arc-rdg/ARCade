@@ -763,6 +763,51 @@
   right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
 }
 
+/* The Training button carries a small tag until the player has opened Training once. */
+.arcade-root .arcade-training {
+  position: relative;
+  display: inline-flex;
+}
+
+.arcade-root .arcade-new {
+  position: absolute;
+  top: -0.8em;
+  right: -1.1em;
+  padding: 0 0.45em;
+  font-size: 0.75em;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--arcade-ink);
+  background: var(--arcade-yellow);
+  border: 2px solid var(--arcade-ink);
+  border-radius: 8px 3px 9px 4px;
+  transform: rotate(6deg);
+  pointer-events: none;
+}
+
+/* The compact title card has an icon for Training, left of the settings icon, with the tag under it. */
+.arcade-root .arcade-training-icon {
+  right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
+}
+
+.arcade-root[data-fullscreen] .arcade-training-icon {
+  right: calc(max(14px, 1.6cqmin) * 4.8 + 20px);
+}
+
+.arcade-root .arcade-new-chrome {
+  position: absolute;
+  z-index: 2;
+  top: calc(8px + max(14px, 1.6cqmin) * 2.4 + 4px);
+  right: calc(max(14px, 1.6cqmin) * 2.4 + 14px);
+  font-size: max(10px, 1.2cqmin);
+  transform: rotate(-3deg);
+}
+
+.arcade-root[data-fullscreen] .arcade-new-chrome {
+  right: calc(max(14px, 1.6cqmin) * 4.8 + 20px);
+}
+
 /* The settings and the changelog scroll inside a compact box too, and start at its top. */
 .arcade-root .arcade-screen.arcade-screen-settings {
   align-items: flex-start;
