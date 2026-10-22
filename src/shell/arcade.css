@@ -772,7 +772,7 @@
 .arcade-root .arcade-new {
   position: absolute;
   top: -0.8em;
-  right: -1.1em;
+  right: calc(-1.1em + 3px);
   padding: 0 0.45em;
   font-size: 0.75em;
   font-weight: 800;

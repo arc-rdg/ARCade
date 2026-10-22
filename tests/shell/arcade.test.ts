@@ -691,6 +691,14 @@ describe('Training', () => {
     expect(screen.queryByText('New here?')).toBeNull()
   })
 
+  it('does not focus Training when the menu returns after a run begun from Training', async () => {
+    await startTraining()
+    gameEvent({ type: 'runStarted', plan })
+    gameEvent({ type: 'menuRequested', choice: 'menu' })
+    await screen.findByRole('button', { name: 'Start run' })
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'Training' }))
+  })
+
   it('keeps the tag for the session only when the storage key is null', async () => {
     await startTraining({ tutorialStorageKey: null })
     gameEvent({ type: 'tutorialStarted' })

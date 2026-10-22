@@ -723,6 +723,10 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
           options.onEvent?.(event)
           if (event.type === 'settingsRequested') openPlayingSettings()
           if (event.type === 'tutorialStarted') markTrainingSeen()
+          // Start run on the finish card turns the room into a run.
+          if (event.type === 'runStarted') training = false
+          // Start run on the finish card turns the room into a run.
+          if (event.type === 'runStarted') training = false
           if (event.type !== 'menuRequested') return
           if (event.choice === 'retry') {
             if (runPlan) game.send({ type: 'start', plan: runPlan })

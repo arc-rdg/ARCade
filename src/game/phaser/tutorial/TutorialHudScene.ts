@@ -157,7 +157,8 @@ export class TutorialHudScene extends Phaser.Scene implements TutorialHud {
     const cardH = y - CARD.top + CARD.pad - CARD.lineGap
     drawScribbleBox(this.cardBox, x, CARD.top, cardW, cardH, 3, step.flash ? FLASH_FILL : PALETTE.cream)
     this.skip.setPosition(x + cardW - SKIP.w / 2 - CARD.pad, CARD.top + 4 + SKIP.h / 2)
-    this.skip.setVisible(!step.flash)
+    // The dim over a pause or the finish card does not block clicks, so the card's Skip hides.
+    this.skip.setVisible(!step.flash && !this.pauseOn && !this.finishOn)
   }
 
   private renderPause() {
