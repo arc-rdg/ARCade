@@ -96,14 +96,21 @@ export function addButton(scene: Phaser.Scene, label: string, width: number, hei
   const box = scene.add.rectangle(0, 0, width, height, PALETTE.navy).setStrokeStyle(1, PALETTE.cream)
   const text = addText(scene, label, Math.round(height * 0.45), { bold: true }).setOrigin(0.5)
   box.setInteractive({ cursor: hoverCursor(scene, 'glove') })
+  // Disabling an object drops it from Phaser's over list without a pointerout, so hiding a hovered
+  // button ends the hover here.
+  let hovered = false
   box.on('pointerover', () => {
+    hovered = true
     box.setFillStyle(PALETTE.blue)
     onHover?.(true)
   })
-  box.on('pointerout', () => {
+  const out = () => {
+    if (!hovered) return
+    hovered = false
     box.setFillStyle(PALETTE.navy)
     onHover?.(false)
-  })
+  }
+  box.on('pointerout', out)
   onClick(scene, box, onPress)
   return {
     setPosition(x, y) {
@@ -114,7 +121,10 @@ export function addButton(scene: Phaser.Scene, label: string, width: number, hei
       box.setVisible(visible)
       text.setVisible(visible)
       if (visible) box.setInteractive({ cursor: hoverCursor(scene, 'glove') })
-      else box.disableInteractive()
+      else {
+        out()
+        box.disableInteractive()
+      }
     },
   }
 }

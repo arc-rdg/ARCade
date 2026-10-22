@@ -100,6 +100,7 @@ export class TutorialHudScene extends Phaser.Scene implements TutorialHud {
     this.pauseOn = visible
     this.canSkip = canSkip
     this.overWidgets = 0
+    this.ctx.tutorial?.captureMouse(false)
     this.render()
   }
 
@@ -107,6 +108,7 @@ export class TutorialHudScene extends Phaser.Scene implements TutorialHud {
     this.finishOn = visible
     this.canStartRun = canStartRun
     this.overWidgets = 0
+    this.ctx.tutorial?.captureMouse(false)
     this.render()
   }
 
