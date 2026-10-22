@@ -854,7 +854,11 @@ same game. Without a plan the card offers no Start run.
   the pointer is over one of its buttons the room captures the mouse, so the click is not an attack.
 - `trainingDummy.ts` makes the calm and the angry dummy. They never die. The calm one shows the combo count and the damage
   per second of the last 3 s. The angry one swings only during the Dodge step and in free play: a 750 ms wind-up (it leans back
-  at once, flashes for 60 ms and takes the mobs' warm tint), then a 150 ms sweep. A dash that overlaps the sweep with its i-frames fills the Dodge step.
+  at once, flashes for 60 ms and takes the mobs' warm tint), then a 420 ms sweep (`SWING_ACTIVE_MS`) whose hitbox stays live the whole time. The sweep is drawn as a scribbled arc over the
+  hitbox with the stick held forward, solid until it fades in the last 100 ms. A dash that overlaps the sweep with its i-frames,
+  at any moment of it, fills the Dodge step. A miss gets a short word over the dummy for 700 ms (`createDodgeJudge`): "Too early"
+  for a dash within 600 ms before the sweep whose i-frames ended first, "Too late" for one within 600 ms after it, "Dash through it"
+  for one inside the window that never met the box.
 - Open `Game/Dev/Tutorial` in Storybook to play it. `Shell/Arcade` has `FirstVisit` and `CompactFirstVisit` for the start screen.
 
 ## Tests

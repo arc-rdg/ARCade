@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import type { Combatant, CombatWorld, HitEvent } from '../../contracts/combat'
 import { DEPTH, PALETTE } from '../../contracts/constants'
-import { createReadout, createSwingCycle, createWobble, SWING_TELEGRAPH_MS } from '../../model/tutorial/dummy'
+import { createDodgeJudge, createReadout, createSwingCycle, createWobble, SWING_ACTIVE_MS, SWING_TELEGRAPH_MS, type DodgeVerdict } from '../../model/tutorial/dummy'
 import { applySpriteRef, DUMMY_HEIGHT, DUMMY_WIDTH, dummyArt, type DummyMood } from '../art'
 import { TELL_FLASH_MS } from '../mobs/tuning'
 import { windupForm } from '../mobs/windup'
@@ -17,6 +17,10 @@ const SWING_KNOCKBACK = { x: 160, y: -120 }
 // How far the angry dummy leans back during the wind-up, and how far it throws itself forward.
 const LEAN_BACK = 0.55
 const LEAN_FORWARD = 0.34
+// The swing trail stays solid and fades over this long at the end of the active window.
+const TRAIL_FADE_MS = 100
+const TIP_MS = 700
+const TIPS: Record<Exclude<DodgeVerdict, 'dodged'>, string> = { early: 'Too early', late: 'Too late', range: 'Dash through it' }
 
 export interface TrainingDummyDeps {
   scene: Phaser.Scene
@@ -59,13 +63,35 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
   const hurtbox = new Phaser.Geom.Rectangle(x - HURTBOX.width / 2, floorY - HURTBOX.height, HURTBOX.width, HURTBOX.height)
   const feet = { x, y: floorY }
   const zoneBox = new Phaser.Geom.Rectangle()
+  const judge = createDodgeJudge()
+  const tip = addText(scene, '', 8, { color: PALETTE.cream, bold: true, align: 'center' })
+    .setOrigin(0.5, 1)
+    .setBackgroundColor('#2b2f4a')
+    .setPadding(3, 1, 3, 1)
+    .setDepth(DEPTH.enemies + 2)
+    .setPosition(x, floorY - DUMMY_HEIGHT - 6)
+    .setVisible(false)
+  let tipMs = 0
+  let shownTip = ''
+  // The swing as it is drawn: a scribbled arc over the hitbox and the stick held forward. Drawn once
+  // for a dummy facing right and mirrored with the scale.
+  const trail = scene.add.graphics().setPosition(x, floorY).setDepth(DEPTH.enemies + 1).setVisible(false)
+  const reach = SWING.reach - SWING.from
+  trail.lineStyle(2, 0x5a3b22, 1).lineBetween(2, -26, SWING.from + 22, -36)
+  for (let i = 0; i < 3; i++) {
+    const r = reach * (0.9 - i * 0.14)
+    trail
+      .lineStyle(3 - i * 0.6, i === 0 ? 0xff7a3d : 0xffb070, 1)
+      .beginPath()
+      .arc(SWING.from, -SWING.height / 2 - 4, r, -1.0 + i * 0.12, 0.9 - i * 0.1)
+      .strokePath()
+  }
   const angry = mood === 'angry'
   let facing: 1 | -1 = -1
   let flashMs = 0
   // The body tint: 0 none, 1 hit flash, 2 wind-up onset flash, 3 warm wind-up tint.
   let tint = 0
   let tellMs = 0
-  let dodged = false
   let destroyed = false
   let frozen = false
   let shownText = ''
@@ -104,7 +130,6 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
       if (before !== 'telegraph' && phase === 'telegraph') {
         // Turns to the player for each swing, so the zone is never behind it.
         facing = player.hurtbox().centerX < x ? -1 : 1
-        dodged = false
         tellMs = TELL_FLASH_MS
       }
       if (swing.startedActive()) {
@@ -112,7 +137,7 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
           owner: dummy,
           shape: { kind: 'rect', x: SWING.from, y: -SWING.height, w: SWING.reach - SWING.from, h: SWING.height },
           follow: false,
-          activeMs: 150,
+          activeMs: SWING_ACTIVE_MS,
           damage: DAMAGE,
           knockback: SWING_KNOCKBACK,
           hitStopMs: 80,
@@ -120,9 +145,18 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
         })
         leanForward = 1
       }
-      if (phase === 'active' && !dodged && player.debugState().motor.dashIframesMs > 0 && Phaser.Geom.Intersects.RectangleToRectangle(swingBox(), player.hurtbox())) {
-        dodged = true
+      const iframes = player.debugState().motor.dashIframesMs > 0
+      const overlaps = phase === 'active' && Phaser.Geom.Intersects.RectangleToRectangle(swingBox(), player.hurtbox())
+      const verdict = judge.step(phase, swing.clockMs(), iframes, overlaps)
+      if (verdict === 'dodged') {
         deps.onDodged?.()
+      } else if (verdict) {
+        tipMs = TIP_MS
+        if (TIPS[verdict] !== shownTip) {
+          shownTip = TIPS[verdict]
+          tip.setText(shownTip)
+        }
+        tip.setVisible(true)
       }
       if (before === 'active' && phase === 'recover') {
         attack = null
@@ -142,6 +176,18 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
         if (phase === 'telegraph' && !frozen) tellMs = Math.max(0, tellMs - deltaMs)
       } else {
         sprite.setRotation(wobble.angle())
+      }
+      if (angry) {
+        const showTrail = phase === 'active'
+        if (showTrail) {
+          const left = SWING_TELEGRAPH_MS + SWING_ACTIVE_MS - swing.clockMs()
+          trail.setScale(facing, 1).setAlpha(Math.min(1, left / TRAIL_FADE_MS))
+        }
+        if (trail.visible !== showTrail) trail.setVisible(showTrail)
+        if (tipMs > 0 && !frozen) {
+          tipMs -= deltaMs
+          if (tipMs <= 0) tip.setVisible(false)
+        }
       }
       if (!frozen) wobble.step(deltaMs)
       flashMs = Math.max(0, flashMs - deltaMs)
@@ -170,6 +216,8 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
       combat.unregister(dummy)
       sprite.destroy()
       label.destroy()
+      tip.destroy()
+      trail.destroy()
     },
   }
   combat.register(dummy)

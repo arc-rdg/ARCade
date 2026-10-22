@@ -120,7 +120,8 @@ export function createWobble(): Wobble {
 export type SwingPhase = 'idle' | 'telegraph' | 'active' | 'recover'
 
 export const SWING_TELEGRAPH_MS = 750
-export const SWING_ACTIVE_MS = 150
+// Long enough that a dash anywhere in the window (the dash i-frames last 120 ms) goes through the swing.
+export const SWING_ACTIVE_MS = 420
 export const SWING_CYCLE_MS = 2600
 
 export interface SwingCycle {
@@ -133,6 +134,8 @@ export interface SwingCycle {
   telegraphProgress(): number
   // True once, on the step the active phase begins.
   startedActive(): boolean
+  // Time into the cycle, 0 while idle.
+  clockMs(): number
 }
 
 // The angry dummy's rhythm: a telegraph, a short active sweep, then recovery until the next one.
@@ -175,5 +178,61 @@ export function createSwingCycle(): SwingCycle {
     phase: () => current,
     telegraphProgress: () => (current === 'telegraph' ? clock / SWING_TELEGRAPH_MS : current === 'idle' ? 0 : 1),
     startedActive: () => activeJustStarted,
+    clockMs: () => (current === 'idle' ? 0 : clock),
+  }
+}
+
+// A dash this long before the window, or after it, counts as a miss worth a word.
+export const DODGE_HINT_MS = 600
+
+export type DodgeVerdict = 'dodged' | 'early' | 'late' | 'range'
+
+export interface DodgeJudge {
+  // Once per fixed step. `iframes` is whether the dash makes the player untouchable now, `overlaps`
+  // whether the player is inside the swing box. Returns a verdict on the step it is known, else null.
+  step(phase: SwingPhase, clockMs: number, iframes: boolean, overlaps: boolean): DodgeVerdict | null
+}
+
+// Tells the dodge from the near misses. A dash with i-frames while the swing is active and the player
+// inside its box is the dodge. A dash that ended before the window is early, one made after it is
+// late, and one inside the window that never met the box is out of range.
+export function createDodgeJudge(): DodgeJudge {
+  let prevPhase: SwingPhase = 'idle'
+  let prevIframes = false
+  let early = false
+  let inWindow = false
+  let dodged = false
+  return {
+    step(phase, clockMs, iframes, overlaps) {
+      const edge = iframes && !prevIframes
+      let verdict: DodgeVerdict | null = null
+      if (phase === 'telegraph' && prevPhase !== 'telegraph') {
+        early = false
+        inWindow = false
+        dodged = false
+      }
+      if (edge) {
+        if (phase === 'telegraph' && SWING_TELEGRAPH_MS - clockMs <= DODGE_HINT_MS) early = true
+        else if (phase === 'active') inWindow = true
+        else if (phase === 'recover' && !inWindow && !dodged && clockMs - SWING_TELEGRAPH_MS - SWING_ACTIVE_MS <= DODGE_HINT_MS) verdict = 'late'
+      }
+      if (phase === 'active') {
+        if (prevPhase !== 'active') {
+          // The i-frames of an early dash ran out before the window opened.
+          if (early && !iframes) verdict = 'early'
+          else if (iframes) inWindow = true
+          early = false
+        }
+        if (!dodged && iframes && overlaps) {
+          dodged = true
+          verdict = 'dodged'
+        }
+      } else if (prevPhase === 'active' && phase === 'recover') {
+        if (inWindow && !dodged) verdict = 'range'
+      }
+      prevPhase = phase
+      prevIframes = iframes
+      return verdict
+    },
   }
 }

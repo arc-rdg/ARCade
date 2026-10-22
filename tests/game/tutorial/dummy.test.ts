@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   COMBO_GAP_MS,
+  createDodgeJudge,
   createReadout,
   createSwingCycle,
   createWobble,
@@ -123,5 +124,58 @@ describe('swing cycle', () => {
     cycle.step(300)
     cycle.enable(false)
     expect(run(cycle, SWING_CYCLE_MS)).toEqual(['telegraph', 'active', 'recover', 'idle'])
+  })
+})
+
+describe('dodge judge', () => {
+  const IFRAMES_MS = 120
+  const ACTIVE_END = SWING_TELEGRAPH_MS + SWING_ACTIVE_MS
+
+  // One cycle in 10 ms steps with a dash whose i-frames start at `dashAt`. `inBox` says whether the
+  // player is in the swing box. Returns the verdicts in order.
+  function play(dashAt: number | null, inBox = true) {
+    const cycle = createSwingCycle()
+    const judge = createDodgeJudge()
+    cycle.enable(true)
+    const verdicts: string[] = []
+    for (let t = 0; t < SWING_CYCLE_MS - 10; t += 10) {
+      const phase = cycle.step(t === 0 ? 0 : 10)
+      const iframes = dashAt !== null && t >= dashAt && t < dashAt + IFRAMES_MS
+      const verdict = judge.step(phase, cycle.clockMs(), iframes, inBox && phase === 'active')
+      if (verdict) verdicts.push(verdict)
+    }
+    return verdicts
+  }
+
+  it('gives the active swing a window a dash cannot miss by timing', () => {
+    expect(SWING_ACTIVE_MS).toBeGreaterThanOrEqual(400)
+    expect(SWING_ACTIVE_MS).toBeLessThanOrEqual(450)
+  })
+
+  it('counts a dash anywhere inside the window that meets the box', () => {
+    for (let at = SWING_TELEGRAPH_MS - IFRAMES_MS + 20; at < ACTIVE_END; at += 30) expect(play(at), `dash at ${at}`).toEqual(['dodged'])
+  })
+
+  it('says nothing when the player does not dash', () => {
+    expect(play(null)).toEqual([])
+  })
+
+  it('calls a dash whose i-frames ended before the swing early', () => {
+    expect(play(SWING_TELEGRAPH_MS - 400)).toEqual(['early'])
+    expect(play(SWING_TELEGRAPH_MS - 590)).toEqual(['early'])
+  })
+
+  it('ignores a dash much earlier than the window', () => {
+    expect(play(SWING_TELEGRAPH_MS - 700)).toEqual([])
+  })
+
+  it('calls a dash after the window late', () => {
+    expect(play(ACTIVE_END + 30)).toEqual(['late'])
+    expect(play(ACTIVE_END + 500)).toEqual(['late'])
+    expect(play(ACTIVE_END + 800)).toEqual([])
+  })
+
+  it('calls a dash inside the window but away from the box out of range', () => {
+    expect(play(SWING_TELEGRAPH_MS + 100, false)).toEqual(['range'])
   })
 })
