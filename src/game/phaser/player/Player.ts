@@ -740,7 +740,7 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   // motor, so a bounce during hit-stop applies when the freeze ends.
   const stopBounceListener = deps.combat.on('hit', (event) => {
     if (event.attacker !== handle || destroyed || !attacks.onOwnHit()) return
-    // The bounce is a full jump high. Diminishing Returns allows up to PLUNGE_CHAIN_MAX plunges.
+    // The bounce is a full jump high. Technical Replicates allows up to PLUNGE_CHAIN_MAX plunges.
     plungeBounced(motor, build.mechanics.includes('serialDilution'))
     handle.setVelocity(motor.vx, -JUMP_VELOCITY)
     squashX = 0.82

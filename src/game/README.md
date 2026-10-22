@@ -494,7 +494,7 @@ Only one air heavy fits in one airtime: until the mage lands or is teleported, a
 heavy press in the air does nothing. The bounce continues that airtime, so it gives back no jump or
 air dash, not even when the landing ring bounced the mage off the floor (`startPlunge`,
 `plungeBounced` and `airHeavyRefused` in `model/input/motor.ts`).
-The Diminishing Returns card (`serialDilution`, the pogo card) lifts the one-per-airtime rule: after a bounce
+The Technical Replicates card (`serialDilution`, the pogo card) lifts the one-per-airtime rule: after a bounce
 another air heavy may start, up to 3 per airtime (`PLUNGE_CHAIN_MAX`), each bouncing to full jump height.
 The count (`plungeChain`) starts over on the same landing or teleport, and the bounces still
 give back no jump, air dash or coyote time.
@@ -709,7 +709,7 @@ Click the canvas to give it keyboard focus.
 | What | Where |
 |---|---|
 | Run, jump, dash, coyote time, jump buffer | `model/input/motor.ts` (`MOTOR`) |
-| Hop limit for the air heavy, Diminishing Returns plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
+| Hop limit for the air heavy, Technical Replicates plunges per airtime | `model/input/motor.ts` (`HOP_MAX_HOLD_MS`, `PLUNGE_CHAIN_MAX`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
 | Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |
 | Mob wind-up poses, ranged lead, contact cap, back-away and dive rules | `phaser/mobs/windup.ts`, `phaser/mobs/weaponPose.ts` |

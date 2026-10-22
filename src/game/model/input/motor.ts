@@ -25,7 +25,7 @@ export const MOTOR = {
 // v = sqrt(2 g h) gives the apex height without the small extra from the apex hang.
 export const JUMP_VELOCITY = Math.sqrt(2 * MOTOR.gravity * MOTOR.jumpHeightTiles * TILE)
 
-// Air heavies that may hit in one airtime with the Diminishing Returns card. Each bounce is a full
+// Air heavies that may hit in one airtime with the Technical Replicates card. Each bounce is a full
 // jump high. Without the card the first bounce ends the plunges until the next landing.
 export const PLUNGE_CHAIN_MAX = 3
 // A jump released before it was held this long is a hop: the cut applied early and the mage gets no
@@ -182,7 +182,7 @@ export function startPlunge(state: MotorState): void {
 // The air heavy bounced the mage up, and the caller sets the velocity to a full jump's. The bounce
 // continues the airtime the plunge started in, also when the landing ring bounced it off the floor:
 // the jumps and the air dash are as they were before the plunge and the coyote time of that
-// landing is gone. Without Diminishing Returns no second air heavy may start before the next
+// landing is gone. Without Technical Replicates no second air heavy may start before the next
 // landing. With it (`chains`) the next one may, up to PLUNGE_CHAIN_MAX per airtime.
 export function plungeBounced(state: MotorState, chains = false): void {
   state.plungeChain = state.plungeLink

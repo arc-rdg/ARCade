@@ -168,7 +168,7 @@ export const CARDS: readonly PowerUpCard[] = [
   },
   {
     id: 'mechanic.serialDilution',
-    name: 'Diminishing Returns',
+    name: 'Technical Replicates',
     description:
       'Up to 3 downward attacks before you land. Each hit bounces you to full jump height. Landing resets the count.',
     rarity: 'uncommon',
