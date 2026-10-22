@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { hoverCursor } from '../cursors'
 import type { SpriteRef } from '../../contracts/art'
 import type { Combatant, CombatWorld, HitEvent, StatusEffect } from '../../contracts/combat'
-import { DEPTH, PALETTE } from '../../contracts/constants'
+import { DEPTH, PALETTE, TILE } from '../../contracts/constants'
 import type { EnemyWeaponKind, MonsterSpec } from '../../contracts/content'
 import { SUMMONED_SUFFIX } from '../../model/content'
 import { mobFragmentDrop } from '../../model/progression'
@@ -19,6 +19,7 @@ import { registerInspectable } from './inspect'
 import { LEDGE_DEPTH, LEDGE_LOOKAHEAD, PIT_DEPTH, groundProbe, sameLevel, turnsAtLedge } from './ledge'
 import type { Box } from './ledge'
 import { approach, blinkDestination } from './motion'
+import { closesIn, dropDecision, dropWait, isStranded, lungeDistance, lunges, pressesPlayer, roomBefore } from './pressure'
 import { createFlimmer } from './phantom'
 import type { Flimmer } from './phantom'
 import { dropOntologyFragments, dropShieldFragment } from './pickups'
@@ -41,10 +42,17 @@ import {
   CONTACT_ACTIVE_MS,
   DEATH_MS,
   DIVE_PULL_UP,
+  DROP_COOLDOWN_MS,
+  DROP_GIVE_UP_MS,
+  DROP_MIN_SPEED,
+  DROP_SCAN_TILES,
+  DROP_THROUGH_MS,
   DIVE_WINDUP_MS,
   DIZZY_MIN_MS,
   FALL_LIMIT,
   GOLEM_DAMAGE,
+  GOLEM_LUNGE_MAX,
+  GOLEM_LUNGE_MS,
   GOLEM_WINDUP_MS,
   GRAVITY,
   HIT_FLASH_MS,
@@ -57,6 +65,8 @@ import {
   HURTBOX_WIDTH,
   LAUNCH_GRACE_MS,
   LOB_GRAVITY,
+  LUNGE_MAX,
+  LUNGE_MS,
   MAX_SPEED_X,
   MELEE,
   MINION_COUNT,
@@ -122,6 +132,12 @@ const BAT_POSE: BodyPose = { lean: -18, sx: 0.85, sy: 1, step: 0 }
 const CROUCH_POSE: BodyPose = { lean: -5, sx: 1.1, sy: 0.82, step: 0 }
 const PUFF_POSE: BodyPose = { lean: 0, sx: 1 + SUMMON_PUFF_SCALE, sy: 1 + SUMMON_PUFF_SCALE, step: 0 }
 const STEPS_PER_PROBE = 3
+// The lunge and the platform scan look ahead in steps of this many units.
+const LUNGE_SCAN_STEP = 8
+// A drop-through checks for floor below the plank, which is thinner than this.
+const DROP_PLANK_CLEARANCE = 12
+// A stranded mob that is walking to the edge gives up when the player is no longer this far below.
+const DROP_HALF_BELOW = 12
 const RANGED_RECOVER_MS = 250
 // Squash of a light shot, which hurts without stunning or pushing.
 const SHOT_SQUASH = 0.35
@@ -258,6 +274,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   const processCollision = (a: unknown, b: unknown): boolean => {
     const other = bodyOf(a === body ? b : a)
     if (!other || !isOneWay(other)) return true
+    if (st.dropThroughMs > 0) return false
     return body.prev.y + H <= other.top + 1
   }
   const colliders = deps.colliders.map((target) => scene.physics.add.collider(body, target, undefined, processCollision))
@@ -297,6 +314,13 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     diveVx: 0,
     diveVy: 0,
     wispBase: homeCy,
+    lungeMs: 0,
+    lungeVx: 0,
+    dropWaitMs: 0,
+    dropMs: 0,
+    dropCdMs: 0,
+    dropFeetY: 0,
+    dropThroughMs: 0,
     blinkCdMs: rng.int(BLINK_MIN_MS, BLINK_MAX_MS),
     blinkMs: 0,
     blinkX: 0,
@@ -328,6 +352,12 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   let wallRight = false
   let ceiling = false
   let aggro = false
+  // A ground melee mob also walks at a player beyond its aggro range, up to MELEE_APPROACH_RANGE.
+  let pressing = false
+  let dropping = false
+  let dropDir: -1 | 1 = 1
+  let dropLanded = false
+  let lungeDir: -1 | 1 = 1
   let phase: AttackPhase = 'idle'
   let activeBox: { cancel(): void } | null = null
   let projectileRef: SpriteRef | null = null
@@ -342,6 +372,8 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   let backingOff = false
   const windPose = bodyWindupPose(weapon.kind, spec.body)
   // Bows and wands keep their distance on the ground. Turrets and thrown weapons stay as they are.
+  // Ground melee mobs close in, lunge and come down off platforms. Beetles and bats have their own charge and dive.
+  const pressures = armed && lunges(isMelee(weapon.kind), flies, spec.body)
   const backsOff = armed && !flies && spec.body !== 'turret' && (weapon.kind === 'bow' || weapon.kind === 'wand')
 
   const probe: Box = { minX: 0, minY: 0, maxX: 0, maxY: 0 }
@@ -393,6 +425,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     const dyc = st.pcy - cy()
     const range = stats.aggroRange * (aggro ? AGGRO_RELEASE : 1)
     aggro = !player.isDead() && (st.provokedMs > 0 || st.dx * st.dx + dyc * dyc <= range * range)
+    if (pressures) pressing = !player.isDead() && pressesPlayer(Math.hypot(st.dx, dyc), pressing, stats.aggroRange)
   }
 
   // True when the walker has to stop or turn at the edge ahead of it. The probes refresh every few steps.
@@ -404,7 +437,10 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
       // The deep probe only runs at an edge.
       pitAheadCached = !groundAheadCached && !world.staticTree.collides(groundProbe(probe, cx(), feetY(), dir, halfW, lookAhead, PIT_DEPTH))
     }
-    return !groundAheadCached && turnsAtLedge(chasing, sameLevel(feetY(), st.pFeet), spec.body === 'crawler', pitAheadCached)
+    if (groundAheadCached) return false
+    // A deliberate drop steps off any edge that has ground within PIT_DEPTH below.
+    if (dropping && !pitAheadCached) return false
+    return turnsAtLedge(chasing, sameLevel(feetY(), st.pFeet), spec.body === 'crawler', pitAheadCached)
   }
 
   // Aims the walker at `speed` in `dir`. Returns false when a wall or a ledge stops it.
@@ -455,7 +491,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
   function holdsGround(): boolean {
     if (!armed) return Math.abs(st.dx) < 4
     const gap = Math.abs(st.dx) - halfW - st.pHalfW
-    return isMelee(weapon.kind) ? gap <= weapon.range * 0.5 : Math.abs(st.dx) <= weapon.range * 0.7
+    return isMelee(weapon.kind) ? !closesIn(gap, weapon.range * 0.5) : Math.abs(st.dx) <= weapon.range * 0.7
   }
 
   // Backs away from a player that is too close, facing them. A wall or a ledge behind stops it.
@@ -484,11 +520,16 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
 
   function thinkGround(dt: number) {
     const speed = stats.speed * mods.speed * st.timeScale
+    if (st.lungeMs > 0) {
+      runLunge(dt)
+      return
+    }
     if (st.stunMs > 0 || st.blinkMs > 0 || phase !== 'idle' || summoning) {
       st.targetVx = 0
       return
     }
-    const chasing = aggro && passive !== 'patrol'
+    const chasing = (aggro || pressing) && passive !== 'patrol'
+    if (pressures && updateDrop(dt, chasing, speed)) return
     switch (spec.body) {
       case 'turret':
         st.targetVx = 0
@@ -744,14 +785,159 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     return charge !== 'none' || swoop === 'windup' || swoop === 'dive' || st.blinkMs > 0
   }
 
+  function reachesVertically(): boolean {
+    if (!isMelee(weapon.kind)) return true
+    const h = Math.max(14, H * MELEE[weapon.kind].thickness * weapon.scale)
+    return Math.abs(st.pcy - cy()) <= (H + h) / 2 + st.pHalfH
+  }
+
   function inReach(): boolean {
     if (isMelee(weapon.kind)) {
       const gap = Math.abs(st.dx) - halfW - st.pHalfW
-      const h = Math.max(14, H * MELEE[weapon.kind].thickness * weapon.scale)
-      return gap <= weapon.range && Math.abs(st.pcy - cy()) <= (H + h) / 2 + st.pHalfH
+      return gap <= weapon.range && reachesVertically()
     }
     const dyc = st.pcy - cy()
     return st.dx * st.dx + dyc * dyc <= weapon.range * weapon.range
+  }
+
+  // The lunge ends the wind-up: a short dash toward a player who is out of reach, before the swing.
+  const wallBlockedAt = (k: number): boolean => {
+    const x = cx() + lungeDir * (halfW + k * LUNGE_SCAN_STEP)
+    probe.minX = x - 1
+    probe.maxX = x + 1
+    probe.minY = body.y + 2
+    probe.maxY = feetY() - 2
+    return world.staticTree.collides(probe)
+  }
+  const groundMissingAt = (k: number): boolean => !world.staticTree.collides(groundProbe(probe, cx(), feetY(), lungeDir, halfW, k * LUNGE_SCAN_STEP))
+
+  function startLunge(kind: MeleeKind) {
+    if (!pressures || !onGround || st.dx * facing <= 0 || !reachesVertically()) return
+    const golem = spec.body === 'golem'
+    const maxDash = golem ? GOLEM_LUNGE_MAX : LUNGE_MAX
+    lungeDir = facing
+    const steps = Math.ceil(maxDash / LUNGE_SCAN_STEP)
+    const distance = lungeDistance({
+      gap: Math.abs(st.dx) - halfW - st.pHalfW,
+      weaponRange: weapon.range,
+      maxDash,
+      wallRoom: roomBefore(LUNGE_SCAN_STEP, steps, wallBlockedAt),
+      groundRoom: roomBefore(LUNGE_SCAN_STEP, steps, groundMissingAt),
+    })
+    if (distance <= 0) return
+    const ms = golem ? GOLEM_LUNGE_MS : LUNGE_MS
+    st.lungeMs = Math.min(ms, MELEE[kind].activeMs + 20)
+    st.lungeVx = (lungeDir * distance * 1000) / st.lungeMs
+  }
+
+  function runLunge(dt: number) {
+    st.lungeMs -= dt * st.timeScale
+    if (st.lungeMs <= 0 || (lungeDir > 0 ? wallRight : wallLeft)) {
+      st.lungeMs = 0
+      st.targetVx = 0
+      body.velocity.x = 0
+      return
+    }
+    st.targetVx = st.lungeVx * st.timeScale
+    body.velocity.x = st.targetVx
+  }
+
+  // A melee mob on a platform with the player lower and out of reach waits, then walks off the edge
+  // toward them or drops through a one-way plank. Returns true when it steers the walk itself.
+  function updateDrop(dt: number, chasing: boolean, speed: number): boolean {
+    st.dropCdMs -= dt
+    st.dropThroughMs = Math.max(0, st.dropThroughMs - dt)
+    if (dropping) {
+      st.dropMs -= dt
+      if (!onGround) dropLanded = true
+      else if (st.dropMs <= 0 || (dropLanded && feetY() > st.dropFeetY + 12) || (dropDir > 0 ? wallRight : wallLeft)) {
+        endDrop()
+        return false
+      } else if (!dropLanded && st.pFeet - feetY() < DROP_HALF_BELOW) {
+        endDrop()
+        return false
+      }
+      if (spec.body === 'slime') return false
+      facing = dropDir
+      st.targetVx = dropDir * Math.max(speed, DROP_MIN_SPEED)
+      return true
+    }
+    const stranded = isStranded({ canDrop: chasing && spec.body !== 'crawler', aggro, onGround, below: st.pFeet - feetY(), inReach: inReach() })
+    st.dropWaitMs = dropWait(st.dropWaitMs, dt, stranded && st.dropCdMs <= 0)
+    if (st.dropWaitMs <= 0) return false
+    if (dropDecision(st.dropWaitMs, stranded, true) !== 'drop') return false
+    if (!planDrop()) {
+      st.dropWaitMs = 0
+      st.dropCdMs = DROP_COOLDOWN_MS
+      return false
+    }
+    dropping = true
+    dropLanded = false
+    st.dropMs = DROP_GIVE_UP_MS
+    st.dropFeetY = feetY()
+    return false
+  }
+
+  function endDrop() {
+    dropping = false
+    st.dropWaitMs = 0
+    st.dropMs = 0
+    st.dropThroughMs = 0
+    st.dropCdMs = DROP_COOLDOWN_MS
+  }
+
+  // Looks for a safe way down: through the plank it stands on, or off the nearest edge toward the
+  // player. Safe means floor within PIT_DEPTH below, so it never drops into a pit.
+  function planDrop(): boolean {
+    const toward: 1 | -1 = st.dx >= 0 ? 1 : -1
+    if (standsOnPlank() && floorBelowFeet()) {
+      dropDir = toward
+      st.dropThroughMs = DROP_THROUGH_MS
+      return true
+    }
+    if (edgeWithFloor(toward)) {
+      dropDir = toward
+      return true
+    }
+    if (Math.abs(st.dx) < W && edgeWithFloor(toward === 1 ? -1 : 1)) {
+      dropDir = toward === 1 ? -1 : 1
+      return true
+    }
+    return false
+  }
+
+  function standsOnPlank(): boolean {
+    probe.minX = body.x + 1
+    probe.maxX = body.x + W - 1
+    probe.minY = feetY() - 1
+    probe.maxY = feetY() + 2
+    const hits = world.staticTree.search(probe) as unknown[]
+    if (hits.length === 0) return false
+    for (const hit of hits) {
+      const other = bodyOf(hit)
+      if (!other || !isOneWay(other)) return false
+    }
+    return true
+  }
+
+  function floorBelowFeet(): boolean {
+    probe.minX = body.x + 2
+    probe.maxX = body.x + W - 2
+    probe.minY = feetY() + DROP_PLANK_CLEARANCE
+    probe.maxY = feetY() + PIT_DEPTH
+    return world.staticTree.collides(probe)
+  }
+
+  // Walks outward from the body along the platform. A wall first means no way down; the first gap in
+  // the ground is the edge, and it counts only when floor lies below it.
+  function edgeWithFloor(dir: 1 | -1): boolean {
+    const steps = DROP_SCAN_TILES * Math.round(TILE / LUNGE_SCAN_STEP)
+    lungeDir = dir
+    for (let k = 1; k <= steps; k++) {
+      if (wallBlockedAt(k)) return false
+      if (groundMissingAt(k)) return world.staticTree.collides(groundProbe(probe, cx(), feetY(), dir, halfW, k * LUNGE_SCAN_STEP, PIT_DEPTH))
+    }
+    return false
   }
 
   function windupMs(): number {
@@ -806,6 +992,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
 
   function fireMelee(kind: MeleeKind) {
     const tune = MELEE[kind]
+    startLunge(kind)
     const golem = spec.body === 'golem'
     const h = Math.max(14, H * tune.thickness * weapon.scale)
     activeBox = combat.spawnHitbox({
@@ -968,6 +1155,9 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     }
     phase = 'idle'
     st.phaseMs = 0
+    st.lungeMs = 0
+    dropping = false
+    st.dropThroughMs = 0
     charge = 'none'
     breakSwoop()
     summoning = false
@@ -981,6 +1171,7 @@ function createMob(scene: Phaser.Scene, spec: MonsterSpec, deps: MobDeps, x: num
     activeBox = null
     phase = 'idle'
     st.phaseMs = 0
+    st.lungeMs = 0
     if (charge !== 'none') endCharge(300)
     breakSwoop()
     if (st.blinkMs > 0) {

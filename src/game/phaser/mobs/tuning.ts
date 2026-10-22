@@ -155,3 +155,30 @@ export const GOLEM_WINDUP_MS = 50
 
 export const PROJECTILE_KNOCKBACK = { x: 150, y: -100 }
 export const CONTACT_KNOCKBACK = { x: 150, y: -140 }
+
+// Melee mobs press the player. A ground melee mob notices a player at least this far away.
+export const MELEE_APPROACH_RANGE = 260
+// At the end of a wind-up a mob whose target is out of reach dashes toward it, then swings. The dash
+// follows the wind-up, so the tell stays the same. It stops where the swing reaches this share of
+// the weapon range from the player.
+export const LUNGE_MAX = 56
+export const LUNGE_MS = 140
+export const LUNGE_MIN = 8
+export const LUNGE_STOP_SHARE = 0.5
+// A golem lunges less and slower.
+export const GOLEM_LUNGE_MAX = 36
+export const GOLEM_LUNGE_MS = 170
+
+// A melee mob on a platform with the player lower and out of reach waits this long, then comes down.
+export const DROP_DELAY_MS = 900
+// The player's feet must be this far below the mob's before it counts as stranded.
+export const DROP_MIN_BELOW = TILE
+// The drop gives up after this long, and no new drop starts for DROP_COOLDOWN_MS.
+export const DROP_GIVE_UP_MS = 3000
+export const DROP_COOLDOWN_MS = 1500
+// How far along the platform a mob looks for its edge, in tiles.
+export const DROP_SCAN_TILES = 10
+// A mob that drops through a one-way plank ignores planks for this long.
+export const DROP_THROUGH_MS = 350
+// A dropping mob walks to the edge at least this fast, so a slow golem does not take seconds.
+export const DROP_MIN_SPEED = 50
