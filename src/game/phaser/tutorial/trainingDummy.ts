@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import type { Combatant, CombatWorld, HitEvent } from '../../contracts/combat'
 import { DEPTH, PALETTE } from '../../contracts/constants'
+import { MOTOR } from '../../model/input/motor'
 import { createDodgeJudge, createReadout, createSwingCycle, createWobble, SWING_ACTIVE_MS, SWING_TELEGRAPH_MS, type DodgeVerdict } from '../../model/tutorial/dummy'
 import { applySpriteRef, DUMMY_HEIGHT, DUMMY_WIDTH, dummyArt, type DummyMood } from '../art'
 import { TELL_FLASH_MS } from '../mobs/tuning'
@@ -13,6 +14,9 @@ const FLASH_MS = 70
 const DAMAGE = 10
 // The angry dummy's sweep: from just in front of it to this far ahead, at about the player's height.
 const SWING = { from: 4, reach: 62, height: 40 }
+// How far one dash carries the player. A dash from further away than the swing reach plus this is
+// not an attempt at this swing.
+const DASH_LENGTH = (MOTOR.dashMs / 1000) * MOTOR.runSpeed * MOTOR.dashSpeedFactor
 const SWING_KNOCKBACK = { x: 160, y: -120 }
 // How far the angry dummy leans back during the wind-up, and how far it throws itself forward.
 const LEAN_BACK = 0.55
@@ -73,19 +77,25 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
     .setVisible(false)
   let tipMs = 0
   let shownTip = ''
-  // The swing as it is drawn: a scribbled arc over the hitbox and the stick held forward. Drawn once
-  // for a dummy facing right and mirrored with the scale.
+  // The swing as it is drawn: the stick held forward and two crescents along the path of its tip,
+  // all inside the hitbox and above the floor. Drawn once for a dummy facing right and mirrored with
+  // the scale.
   const trail = scene.add.graphics().setPosition(x, floorY).setDepth(DEPTH.enemies + 1).setVisible(false)
-  const reach = SWING.reach - SWING.from
-  trail.lineStyle(2, 0x5a3b22, 1).lineBetween(2, -26, SWING.from + 22, -36)
-  for (let i = 0; i < 3; i++) {
-    const r = reach * (0.9 - i * 0.14)
-    trail
-      .lineStyle(3 - i * 0.6, i === 0 ? 0xff7a3d : 0xffb070, 1)
-      .beginPath()
-      .arc(SWING.from, -SWING.height / 2 - 4, r, -1.0 + i * 0.12, 0.9 - i * 0.1)
-      .strokePath()
+  const crescent = (rx: number, ry: number, from: number, to: number, width: number, color: number) => {
+    trail.lineStyle(width, color, 1).beginPath()
+    for (let i = 0; i <= 12; i++) {
+      const angle = from + ((to - from) * i) / 12
+      const px = SWING.from + 6 + Math.cos(angle) * rx
+      const py = -SWING.height / 2 + Math.sin(angle) * ry
+      if (i === 0) trail.moveTo(px, py)
+      else trail.lineTo(px, py)
+    }
+    trail.strokePath()
   }
+  crescent(46, 16, -1.3, 1.0, 4, 0xff7a3d)
+  crescent(34, 11, -1.1, 0.9, 2, 0xffb070)
+  trail.lineStyle(5, 0x3a2614, 1).lineBetween(6, -18, 54, -24)
+  trail.lineStyle(3, 0x8a5a33, 1).lineBetween(6, -18, 54, -24)
   const angry = mood === 'angry'
   let facing: 1 | -1 = -1
   let flashMs = 0
@@ -147,8 +157,13 @@ export function createTrainingDummy(deps: TrainingDummyDeps, x: number, floorY: 
       }
       const iframes = player.debugState().motor.dashIframesMs > 0
       const overlaps = phase === 'active' && Phaser.Geom.Intersects.RectangleToRectangle(swingBox(), player.hurtbox())
-      const verdict = judge.step(phase, swing.clockMs(), iframes, overlaps)
+      const near = Math.abs(player.hurtbox().centerX - x) <= SWING.reach + DASH_LENGTH
+      const verdict = judge.step(phase, swing.clockMs(), iframes, overlaps, near)
       if (verdict === 'dodged') {
+        // The box lives longer than the dash i-frames and would hit once they end, so it goes. The
+        // trail stays.
+        attack?.cancel()
+        attack = null
         deps.onDodged?.()
       } else if (verdict) {
         tipMs = TIP_MS

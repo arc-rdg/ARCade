@@ -132,8 +132,8 @@ describe('dodge judge', () => {
   const ACTIVE_END = SWING_TELEGRAPH_MS + SWING_ACTIVE_MS
 
   // One cycle in 10 ms steps with a dash whose i-frames start at `dashAt`. `inBox` says whether the
-  // player is in the swing box. Returns the verdicts in order.
-  function play(dashAt: number | null, inBox = true) {
+  // player is in the swing box and `near` whether a dash could reach the dummy. Returns the verdicts in order.
+  function play(dashAt: number | null, inBox = true, near = true) {
     const cycle = createSwingCycle()
     const judge = createDodgeJudge()
     cycle.enable(true)
@@ -141,7 +141,7 @@ describe('dodge judge', () => {
     for (let t = 0; t < SWING_CYCLE_MS - 10; t += 10) {
       const phase = cycle.step(t === 0 ? 0 : 10)
       const iframes = dashAt !== null && t >= dashAt && t < dashAt + IFRAMES_MS
-      const verdict = judge.step(phase, cycle.clockMs(), iframes, inBox && phase === 'active')
+      const verdict = judge.step(phase, cycle.clockMs(), iframes, inBox && phase === 'active', near)
       if (verdict) verdicts.push(verdict)
     }
     return verdicts
@@ -177,5 +177,11 @@ describe('dodge judge', () => {
 
   it('calls a dash inside the window but away from the box out of range', () => {
     expect(play(SWING_TELEGRAPH_MS + 100, false)).toEqual(['range'])
+  })
+
+  it('says nothing about a dash made too far away to matter', () => {
+    expect(play(SWING_TELEGRAPH_MS - 400, false, false)).toEqual([])
+    expect(play(ACTIVE_END + 30, false, false)).toEqual([])
+    expect(play(SWING_TELEGRAPH_MS + 100, false, false)).toEqual([])
   })
 })

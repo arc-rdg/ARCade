@@ -189,8 +189,9 @@ export type DodgeVerdict = 'dodged' | 'early' | 'late' | 'range'
 
 export interface DodgeJudge {
   // Once per fixed step. `iframes` is whether the dash makes the player untouchable now, `overlaps`
-  // whether the player is inside the swing box. Returns a verdict on the step it is known, else null.
-  step(phase: SwingPhase, clockMs: number, iframes: boolean, overlaps: boolean): DodgeVerdict | null
+  // whether the player is inside the swing box and `near` whether the player is close enough for a
+  // dash to reach it, so dashes made far away judge nothing. Returns a verdict on the step it is known, else null.
+  step(phase: SwingPhase, clockMs: number, iframes: boolean, overlaps: boolean, near: boolean): DodgeVerdict | null
 }
 
 // Tells the dodge from the near misses. A dash with i-frames while the swing is active and the player
@@ -203,7 +204,7 @@ export function createDodgeJudge(): DodgeJudge {
   let inWindow = false
   let dodged = false
   return {
-    step(phase, clockMs, iframes, overlaps) {
+    step(phase, clockMs, iframes, overlaps, near) {
       const edge = iframes && !prevIframes
       let verdict: DodgeVerdict | null = null
       if (phase === 'telegraph' && prevPhase !== 'telegraph') {
@@ -211,7 +212,7 @@ export function createDodgeJudge(): DodgeJudge {
         inWindow = false
         dodged = false
       }
-      if (edge) {
+      if (edge && near) {
         if (phase === 'telegraph' && SWING_TELEGRAPH_MS - clockMs <= DODGE_HINT_MS) early = true
         else if (phase === 'active') inWindow = true
         else if (phase === 'recover' && !inWindow && !dodged && clockMs - SWING_TELEGRAPH_MS - SWING_ACTIVE_MS <= DODGE_HINT_MS) verdict = 'late'
@@ -220,7 +221,7 @@ export function createDodgeJudge(): DodgeJudge {
         if (prevPhase !== 'active') {
           // The i-frames of an early dash ran out before the window opened.
           if (early && !iframes) verdict = 'early'
-          else if (iframes) inWindow = true
+          else if (iframes && near) inWindow = true
           early = false
         }
         if (!dodged && iframes && overlaps) {
