@@ -33,13 +33,13 @@ export function legendaryChance(build: PlayerBuild): number {
   return Math.min(LEGENDARY_PITY_MAX, LEGENDARY_BASE + LEGENDARY_PITY_STEP * Math.max(0, build.level - 2))
 }
 
-// Below the legendary chance the roll is legendary. The rest splits 7.5 : 22 : 70 into rare,
-// uncommon and common, which is 7.5%, 22% and 70% at the base legendary chance.
+// Below the legendary chance the roll is legendary. The rest splits 10.5 : 27 : 62.5 into rare,
+// uncommon and common, which is 10.5%, 27% and 62% at the base legendary chance.
 function rollRarity(r: number, legendary: number): Rarity {
   if (r < legendary) return 'legendary'
   const rest = ((r - legendary) / (1 - legendary)) * 0.995
-  if (rest < 0.075) return 'rare'
-  if (rest < 0.295) return 'uncommon'
+  if (rest < 0.105) return 'rare'
+  if (rest < 0.375) return 'uncommon'
   return 'common'
 }
 

@@ -57,9 +57,9 @@ describe('rollOffer', () => {
       counts[rollOffer(createBuild(), rng)[0].rarity] += 1
     }
     const share = (rarity: Rarity) => counts[rarity] / rolls
-    expect(Math.abs(share('common') - 0.7)).toBeLessThanOrEqual(0.005)
-    expect(Math.abs(share('uncommon') - 0.22)).toBeLessThanOrEqual(0.005)
-    expect(Math.abs(share('rare') - 0.075)).toBeLessThanOrEqual(0.005)
+    expect(Math.abs(share('common') - 0.62)).toBeLessThanOrEqual(0.005)
+    expect(Math.abs(share('uncommon') - 0.27)).toBeLessThanOrEqual(0.005)
+    expect(Math.abs(share('rare') - 0.105)).toBeLessThanOrEqual(0.005)
     expect(counts.legendary).toBeGreaterThan(0)
     expect(share('legendary')).toBeLessThan(0.01)
   })
