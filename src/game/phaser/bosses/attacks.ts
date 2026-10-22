@@ -72,6 +72,21 @@ interface Wave {
   fired: boolean
   // A pillar's height.
   height: number
+  // When the wave left the boss, in run time. Only set once it has fired.
+  bornMs: number
+}
+
+// A zone with the x range it shows. It fades out as soon as no hitbox of the attack can hit in
+// that range any more: at atMs for a part that ends all at once, or earlier through keepRange.
+export interface Part {
+  zone: Zone
+  from: number
+  to: number
+  safe: boolean
+  // Which platform or which side of the boss the part belongs to.
+  key: number
+  // Time since the strike (run.elapsedMs) when the part is done. Infinity until the attack knows.
+  atMs: number
 }
 
 // The running attack. One object per boss, reset for each attack. Spawning a hitbox or a shot
@@ -84,10 +99,13 @@ export interface AttackRun {
   // Set by fire(): how long the attack lasts.
   activeMs: number
   zones: Zone[]
+  parts: Part[]
   boxes: Cancelable[]
   shots: Cancelable[]
   safe: Interval[]
   waves: Wave[]
+  // The platform of each drop of a platform rain still to fall, the next one at the end.
+  plan: number[]
   dir: Facing
   variant: number
   // The platform a leap lands on, or null for the floor.
@@ -120,10 +138,12 @@ export function createRun(): AttackRun {
     windupMs: 0,
     activeMs: 0,
     zones: [],
+    parts: [],
     boxes: [],
     shots: [],
     safe: [],
     waves: [],
+    plan: [],
     dir: 1,
     variant: 0,
     ledge: null,
@@ -147,6 +167,8 @@ export function resetRun(run: AttackRun, spec: BossAttackSpec, windupMs: number)
   run.windupMs = windupMs
   run.activeMs = 0
   run.zones.length = 0
+  run.parts.length = 0
+  run.plan.length = 0
   run.boxes.length = 0
   run.shots.length = 0
   run.safe = []
@@ -242,10 +264,42 @@ function lightPose(run: AttackRun, env: AttackEnv, kind: PoseKind, leanBack: num
   return t
 }
 
-function show(run: AttackRun, env: AttackEnv, spec: ZoneSpec): void {
+function show(run: AttackRun, env: AttackEnv, spec: ZoneSpec, key = 0): void {
   // Light attacks only warn with the body flash. Safe spots show for every area attack.
   if (!run.spec.heavy && !spec.safe) return
-  run.zones.push(env.telegraphs.show(spec))
+  const zone = env.telegraphs.show(spec)
+  run.zones.push(zone)
+  const from = spec.fill === 'right' ? spec.x : spec.fill === 'left' ? spec.x - spec.w : spec.x - spec.w / 2
+  run.parts.push({ zone, from, to: from + spec.w, safe: !!spec.safe, key, atMs: Infinity })
+}
+
+// The danger zones all end when their hitboxes do, atMs after the strike. Safe spots and parts that
+// end on their own (the charge, the wave, the rain) are left alone.
+function endDanger(run: AttackRun, atMs: number): void {
+  for (const part of run.parts) if (!part.safe) part.atMs = atMs
+}
+
+// Keeps only the part of the zone inside [lo, hi], where a hitbox is or will be. Nothing left to keep
+// ends the part now.
+function keepRange(run: AttackRun, part: Part, lo: number, hi: number): void {
+  const a = Math.max(lo, part.from)
+  const b = Math.min(hi, part.to)
+  if (b <= a) part.atMs = Math.min(part.atMs, run.elapsedMs)
+  else part.zone.trim(a, b)
+}
+
+// Fades the parts that are done. The safe spots of a heavy attack go with the last danger zone, the
+// rest of them go when the attack ends. Call once per step while the attack is active.
+export function clearParts(run: AttackRun): void {
+  let danger = false
+  for (const part of run.parts) if (!part.safe) danger = true
+  for (let i = run.parts.length - 1; i >= 0; i--) {
+    const part = run.parts[i]
+    if (run.elapsedMs < part.atMs && (danger || !part.safe || !run.spec.heavy)) continue
+    part.zone.fade()
+    run.zones.splice(run.zones.indexOf(part.zone), 1)
+    run.parts.splice(i, 1)
+  }
 }
 
 function showSafe(run: AttackRun, env: AttackEnv, y: number, h: number): void {
@@ -392,12 +446,15 @@ const slam: AttackKind = {
     const knock = knockback(away, env.self.facing(), 190, 210)
     if (run.variant === 0) {
       hit(run, env, { kind: 'circle', x: run.targetX, y: (run.ledge ? run.ledge.top : floor) - 6, r: LEAP_RADIUS }, 180, knock)
+      endDanger(run, 180)
     } else if (run.variant === 1) {
       hit(run, env, { kind: 'rect', x: run.targetX - SMASH.w / 2, y: floor - SMASH.h, w: SMASH.w, h: SMASH.h }, 200, knock)
+      endDanger(run, 200)
     } else {
       for (const part of openIntervals(arena.left, arena.right, run.safe)) {
         hit(run, env, { kind: 'rect', x: part.from, y: floor - QUAKE_HEIGHT, w: part.to - part.from, h: QUAKE_HEIGHT }, 200, knock)
       }
+      endDanger(run, 200)
     }
     run.activeMs = 240
   },
@@ -444,6 +501,7 @@ const sweep: AttackKind = {
   fire(run, env) {
     const x = run.dir === 1 ? run.targetX : run.targetX - run.length
     hit(run, env, { kind: 'rect', x, y: run.top, w: run.length, h: run.bottom - run.top }, 170, knockback(run.dir, env.self.facing(), 200, 150))
+    endDanger(run, 170)
     run.activeMs = 220
   },
   active(run, env) {
@@ -525,6 +583,18 @@ function puffDust(run: AttackRun, env: AttackEnv): void {
   }
 }
 
+// The lane is only dangerous from the back of the body to the end of the run. Whatever the body has
+// passed is cleared, a step of travel behind it to be safe.
+function trimCharge(run: AttackRun, env: AttackEnv): void {
+  const { body } = env
+  const reach = body.hurtW / 2 + 4
+  const behind = reach + (run.speed * STEP_MS) / 1000
+  for (const part of run.parts) {
+    if (run.dir === 1) keepRange(run, part, body.x - behind, run.targetX + reach)
+    else keepRange(run, part, run.targetX - reach, body.x + behind)
+  }
+}
+
 const charge: AttackKind = {
   begin(run, env) {
     const { arena, body } = env
@@ -569,16 +639,19 @@ const charge: AttackKind = {
       knockback(run.dir, env.self.facing(), 240, 170),
       true,
     )
+    endDanger(run, travelMs + 40)
     run.activeMs = travelMs + 160
+    trimCharge(run, env)
   },
   active(run, env, dtMs) {
     const { body } = env
     if ((run.targetX - body.x) * run.dir <= 0) {
       if (run.ledge) body.lift = Math.max(env.hover, body.lift - CHARGE_SINK * (dtMs / 1000))
-      return
+    } else {
+      body.x += run.dir * run.speed * (dtMs / 1000)
+      if ((run.targetX - body.x) * run.dir <= 0) body.x = run.targetX
     }
-    body.x += run.dir * run.speed * (dtMs / 1000)
-    if ((run.targetX - body.x) * run.dir <= 0) body.x = run.targetX
+    trimCharge(run, env)
   },
 }
 
@@ -593,18 +666,25 @@ const RAIN_DROP_MS = 800
 // at DEPTH.tiles. The drops still hit a player on a platform.
 const RAIN_DEPTH = DEPTH.tiles - 1
 
+// Remembers a drop in the air, so the zone under it stays until it has landed.
+function track(run: AttackRun, x: number, lifeMs: number): void {
+  run.waves.push({ at: run.elapsedMs + lifeMs, x, dir: 1, lifeMs, fired: true, height: 0, bornMs: run.elapsedMs })
+}
+
 function dropOnLedge(run: AttackRun, env: AttackEnv): void {
   const { arena, rng } = env
-  const ledges = arena.platforms
-  const p = ledges[rng.int(0, ledges.length - 1)]
+  const p = arena.platforms[run.plan[run.count - 1]]
   const y = arena.floorY - SKY
+  const x = p.x + 4 + rng.next() * (p.w - 8)
+  const lifeMs = fallMs(p.top - y, 60, 760)
+  track(run, x, lifeMs)
   shoot(run, env, shotArt(env), {
-    x: p.x + 4 + rng.next() * (p.w - 8),
+    x,
     y,
     vx: 0,
     vy: 60,
     gravity: 760,
-    lifetimeMs: fallMs(p.top - y, 60, 760),
+    lifetimeMs: lifeMs,
     radius: RAIN_RADIUS,
     knock: { x: 40, y: -140 },
     reflectable: false,
@@ -623,6 +703,7 @@ function dropRain(run: AttackRun, env: AttackEnv): void {
     if (tries >= 4) return
     x = arena.left + rng.next() * (arena.right - arena.left)
   }
+  track(run, x, RAIN_DROP_MS)
   shoot(run, env, shotArt(env), {
     x,
     y: arena.floorY - SKY,
@@ -638,7 +719,31 @@ function dropRain(run: AttackRun, env: AttackEnv): void {
 }
 
 function showLedgeBands(run: AttackRun, env: AttackEnv): void {
-  for (const p of env.arena.platforms) show(run, env, { shape: 'rect', x: p.x + p.w / 2, y: p.top - RAIN_BAND / 2, w: p.w + 12, h: RAIN_BAND, fill: 'wide' })
+  env.arena.platforms.forEach((p, i) => show(run, env, { shape: 'rect', x: p.x + p.w / 2, y: p.top - RAIN_BAND / 2, w: p.w + 12, h: RAIN_BAND, fill: 'wide' }, i))
+}
+
+// True while a drop of the platform rain is still to fall on that platform.
+function dropsLeft(run: AttackRun, ledge: number): boolean {
+  for (let i = 0; i < run.count; i++) if (run.plan[i] === ledge) return true
+  return false
+}
+
+// A part of the rain zone is done once no drop is left to fall in it and none in the air is still
+// over it. Until then it shows only the stretch the drops in the air can still hit.
+function settleRain(run: AttackRun): void {
+  for (const part of run.parts) {
+    if (part.safe || part.atMs !== Infinity) continue
+    if (run.count > 0 && (run.variant === 0 || dropsLeft(run, part.key))) continue
+    let lo = Infinity
+    let hi = -Infinity
+    for (const drop of run.waves) {
+      if (drop.at <= run.elapsedMs) continue
+      if (drop.x + RAIN_RADIUS <= part.from || drop.x - RAIN_RADIUS >= part.to) continue
+      lo = Math.min(lo, drop.x - RAIN_RADIUS)
+      hi = Math.max(hi, drop.x + RAIN_RADIUS)
+    }
+    keepRange(run, part, lo, hi)
+  }
 }
 
 const rain: AttackKind = {
@@ -664,6 +769,7 @@ const rain: AttackKind = {
     run.count = run.spec.heavy ? 18 : 10
     run.intervalMs = run.spec.heavy ? 70 : 100
     run.timerMs = 0
+    if (run.variant === 1) for (let i = 0; i < run.count; i++) run.plan.push(env.rng.int(0, env.arena.platforms.length - 1))
     run.activeMs = run.count * run.intervalMs + 200
     // A heavy rain stays active (bar locked, zone up) until its last drop has landed.
     if (run.spec.heavy) {
@@ -681,6 +787,7 @@ const rain: AttackKind = {
       run.count--
       run.timerMs += run.intervalMs
     }
+    settleRain(run)
   },
 }
 
@@ -767,6 +874,7 @@ const beam: AttackKind = {
         hit(run, env, { kind: 'circle', x: run.startX + cos * d, y: run.top + sin * d, r: BEAM_RADIUS }, 420, knock)
       }
     }
+    endDanger(run, 420)
     run.activeMs = 460
   },
 }
@@ -800,6 +908,26 @@ const WAVE_MARGIN = WAVE_WIDTH / 2 + (WAVE_SPEED * STEP_MS) / 1000
 const FLOOD_HEIGHT = 36
 const FLOOD_MS = 900
 
+// Each side of the wave zone shows the stretch from the back of the first wave still to come or in the
+// air to the far end of the last one. A step of travel is kept behind a wave that is flying.
+function trimWaves(run: AttackRun): void {
+  const step = (WAVE_SPEED * STEP_MS) / 1000
+  const half = WAVE_WIDTH / 2
+  for (const part of run.parts) {
+    if (part.safe) continue
+    let lo = Infinity
+    let hi = -Infinity
+    for (const wave of run.waves) {
+      if (wave.dir !== part.key || (wave.fired && run.timerMs >= wave.bornMs + wave.lifeMs)) continue
+      const end = wave.x + (wave.dir * WAVE_SPEED * wave.lifeMs) / 1000
+      const now = wave.fired ? wave.x + (wave.dir * WAVE_SPEED * (run.timerMs - wave.bornMs)) / 1000 : wave.x
+      lo = Math.min(lo, Math.min(end, now) - half - (wave.dir === 1 && wave.fired ? step : 0))
+      hi = Math.max(hi, Math.max(end, now) + half + (wave.dir === -1 && wave.fired ? step : 0))
+    }
+    keepRange(run, part, lo, hi)
+  }
+}
+
 const shockwave: AttackKind = {
   begin(run, env) {
     const { arena, body } = env
@@ -816,8 +944,8 @@ const shockwave: AttackKind = {
     const y = arena.floorY - WAVE_BAND / 2
     const left = body.x - body.hurtW / 2
     const right = body.x + body.hurtW / 2
-    if (left - arena.left > 10) show(run, env, { shape: 'rect', x: left, y, w: left - arena.left, h: WAVE_BAND, fill: 'left' })
-    if (arena.right - right > 10) show(run, env, { shape: 'rect', x: right, y, w: arena.right - right, h: WAVE_BAND, fill: 'right' })
+    if (left - arena.left > 10) show(run, env, { shape: 'rect', x: left, y, w: left - arena.left, h: WAVE_BAND, fill: 'left' }, -1)
+    if (arena.right - right > 10) show(run, env, { shape: 'rect', x: right, y, w: arena.right - right, h: WAVE_BAND, fill: 'right' }, 1)
     showSafe(run, env, y, WAVE_BAND + 8)
   },
   fire(run, env) {
@@ -827,6 +955,7 @@ const shockwave: AttackKind = {
       for (const part of openIntervals(arena.left, arena.right, run.safe)) {
         hit(run, env, { kind: 'rect', x: part.from, y: arena.floorY - FLOOD_HEIGHT, w: part.to - part.from, h: FLOOD_HEIGHT }, FLOOD_MS, knock)
       }
+      endDanger(run, FLOOD_MS)
       run.activeMs = FLOOD_MS
       return
     }
@@ -839,12 +968,13 @@ const shockwave: AttackKind = {
         const stop = dir === 1 ? part.to : part.from
         const at = (Math.abs(start - edge) / WAVE_SPEED) * 1000
         const lifeMs = (Math.abs(stop - start) / WAVE_SPEED) * 1000
-        run.waves.push({ at, x: start, dir, lifeMs, fired: false, height: 0 })
+        run.waves.push({ at, x: start, dir, lifeMs, fired: false, height: 0, bornMs: 0 })
         end = Math.max(end, at + lifeMs)
       }
     }
     run.timerMs = 0
     run.activeMs = end + 100
+    trimWaves(run)
   },
   active(run, env, dtMs) {
     run.timerMs += dtMs
@@ -852,6 +982,7 @@ const shockwave: AttackKind = {
     for (const wave of run.waves) {
       if (wave.fired || run.timerMs < wave.at) continue
       wave.fired = true
+      wave.bornMs = run.timerMs
       shoot(run, env, 'orb', {
         x: wave.x,
         y: env.arena.floorY - WAVE_BAND / 2,
@@ -865,6 +996,7 @@ const shockwave: AttackKind = {
         reflectable: false,
       })
     }
+    trimWaves(run)
   },
 }
 
@@ -899,7 +1031,7 @@ const pillars: AttackKind = {
     for (let x = first; x <= arena.right - half; x += PILLAR.pitch) {
       if (Math.abs(x - playerX) > reach) continue
       const height = pillarHeight(env, x, camping)
-      run.waves.push({ at: 0, x, dir: 1, lifeMs: 0, fired: false, height })
+      run.waves.push({ at: 0, x, dir: 1, lifeMs: 0, fired: false, height, bornMs: 0 })
       show(run, env, { shape: 'rect', x, y: arena.floorY, w: PILLAR.w, h: height, fill: 'up' })
     }
   },
@@ -912,6 +1044,7 @@ const pillars: AttackKind = {
       const away: Facing = env.player.position().x >= column.x ? 1 : -1
       hit(run, env, { kind: 'rect', x: column.x - PILLAR.w / 2, y: floor - column.height, w: PILLAR.w, h: column.height }, 260, knockback(away, env.self.facing(), 120, 260))
     }
+    endDanger(run, 260)
     run.activeMs = 300
   },
 }

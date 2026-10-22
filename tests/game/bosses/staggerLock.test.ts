@@ -12,7 +12,7 @@ vi.mock('../../../src/game/phaser/mobs/inspect', () => ({ registerInspectable: (
 vi.mock('../../../src/game/phaser/bosses/telegraph', async () => {
   const { chain } = await import('./actorFakes')
   return {
-    createTelegraphPool: () => ({ show: () => ({ setProgress() {}, activate() {}, release() {} }), update() {}, destroy() {} }),
+    createTelegraphPool: () => ({ show: () => ({ setProgress() {}, activate() {}, trim() {}, fade() {}, release() {} }), update() {}, destroy() {} }),
     createTextPool: () => ({ acquire: () => chain(), release() {}, destroy() {} }),
   }
 })

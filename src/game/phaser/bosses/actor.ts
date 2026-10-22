@@ -9,7 +9,7 @@ import type { MonsterDescription } from '../../model/content'
 import { cssColor } from '../color'
 import { addStatus, clearStatus, createStatus, statusTimeScale, tickStatus } from '../combat/status'
 import { createAdds } from './adds'
-import { ATTACK_KINDS, createRun, isFloorOnly, resetRun } from './attacks'
+import { ATTACK_KINDS, clearParts, createRun, isFloorOnly, resetRun } from './attacks'
 import type { AttackEnv, BossBody } from './attacks'
 import { playFx } from '../mobs/fx'
 import { registerInspectable } from '../mobs/inspect'
@@ -343,6 +343,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
   function releaseZones() {
     for (const zone of run.zones) zone.release()
     run.zones.length = 0
+    run.parts.length = 0
   }
 
   function releaseTell() {
@@ -431,6 +432,7 @@ export function createActor(scene: Phaser.Scene, config: ActorConfig): Actor {
     } else if (run.phase === 'active') {
       releasePose(dtMs)
       kind.active?.(run, env, dtMs)
+      clearParts(run)
       if (run.elapsedMs >= run.activeMs) {
         run.phase = 'recovery'
         run.elapsedMs = 0

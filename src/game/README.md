@@ -92,7 +92,7 @@ attack the punish window is 400 ms plus 300 ms times the quality, after a light 
 plus 50 ms times the quality, and every cooldown is scaled by 0.6 plus 0.4 times the quality. When
 every attack is on cooldown for longer than 250 plus 350 ms times the quality, the light attack that
 is closest to ready goes anyway. Heavy attacks keep their cooldown. A heavy rain, Crate Collapse
-included, keeps its stagger lock and its danger zone until the last drop has landed, and an attack
+included, keeps its stagger lock until the last drop has landed, and an attack
 that ends after a phase shift still leaves its punish window or gap.
 
 A boss arena has a row of one-way platforms, 60 units over the floor and 3 tiles wide
@@ -135,6 +135,12 @@ on top of the 110 ms white flash at its start. The wind-up is `270 + 180 * quali
 | Projectile fan | rears up (leans back 0.15 rad) and puffs up (size ×1.08) |
 | Rain | both arms straight up |
 | Summon | both arms spread wide |
+
+A danger zone goes as soon as nothing of the attack can hit there any more, not when the attack ends.
+It fades out in 120 ms. The sweep, slam, beam, pillars and flood go when their hitboxes end. The charge
+and the shockwave shrink behind the body and the wave. A rain shows the stretch the drops still in the
+air can hit, and a platform rain clears a platform band after the last drop planned for it. The code
+that spawns a hitbox or a shot also says when its zone is done (`phaser/bosses/attacks.ts`).
 
 A well-annotated step shows the tell text (the node's own annotations) 300 ms before the zone of a
 heavy attack appears (`TELL_LEAD_MS`), so it can be read first. The heavy attack starts after

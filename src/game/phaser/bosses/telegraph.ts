@@ -23,6 +23,10 @@ export interface Zone {
   setProgress(progress: number): void
   // The wind-up is over and the zone hits. Shows it in full with a short flash.
   activate(): void
+  // Shows only the part of a flat zone between these world x.
+  trim(from: number, to: number): void
+  // Fades the zone out quickly and frees it. The zone is gone for the caller after this.
+  fade(): void
   release(): void
 }
 
@@ -45,6 +49,8 @@ const FLASH_POP = 0.08
 // Safe spots breathe between these alphas, about once a second, so they stand out from the danger.
 const SAFE_ALPHA = { min: 0.65, max: 0.95 }
 const SAFE_PULSE_MS = 160
+// A zone whose danger is over fades out this fast.
+const FADE_MS = 120
 
 interface Slot extends Zone {
   base: Phaser.GameObjects.Image
@@ -56,6 +62,13 @@ interface Slot extends Zone {
   scaleY: number
   // Scene time of the impact, or -1 when no flash runs.
   flashAt: number
+  // Scene time the fade began, or -1.
+  fadeAt: number
+  // Left edge and width in world units, and the part shown now.
+  left: number
+  width: number
+  shownFrom: number
+  shownTo: number
 }
 
 const crop: FillCrop = { x: 0, y: 0, w: 0, h: 0, scale: 1 }
@@ -85,6 +98,11 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
       scaleX: 1,
       scaleY: 1,
       flashAt: -1,
+      fadeAt: -1,
+      left: 0,
+      width: 1,
+      shownFrom: 0,
+      shownTo: 0,
       setProgress(progress) {
         if (slot.safe) return
         const image = slot.fillImage
@@ -100,10 +118,26 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
         slot.setProgress(1)
         slot.flashAt = scene.time.now
       },
+      trim(from, to) {
+        if (!slot.used || slot.safe || slot.mode === 'radial') return
+        const a = Math.max(slot.left, from)
+        const b = Math.min(slot.left + slot.width, to)
+        if (a === slot.shownFrom && b === slot.shownTo) return
+        slot.shownFrom = a
+        slot.shownTo = b
+        for (const image of [slot.base, slot.fillImage]) {
+          const k = image.frame.realWidth / slot.width
+          image.setCrop((a - slot.left) * k, 0, Math.max(0.01, b - a) * k, image.frame.realHeight)
+        }
+      },
+      fade() {
+        if (slot.used && slot.fadeAt < 0) slot.fadeAt = scene.time.now
+      },
       release() {
         if (!slot.used) return
         slot.used = false
         slot.flashAt = -1
+        slot.fadeAt = -1
         slot.base.setVisible(false)
         slot.fillImage.setVisible(false)
         free.push(slot)
@@ -124,6 +158,11 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
       slot.mode = spec.fill
       slot.safe = !!spec.safe
       slot.flashAt = -1
+      slot.fadeAt = -1
+      slot.width = spec.w
+      slot.left = spec.x - ox * spec.w
+      slot.shownFrom = slot.left
+      slot.shownTo = slot.left + spec.w
       for (const image of [slot.base, slot.fillImage]) {
         image
           .setTexture(texture)
@@ -146,6 +185,16 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
       const alpha = SAFE_ALPHA.min + (SAFE_ALPHA.max - SAFE_ALPHA.min) * k
       for (const slot of slots) {
         if (!slot.used) continue
+        if (slot.fadeAt >= 0) {
+          const left = 1 - (now - slot.fadeAt) / FADE_MS
+          if (left <= 0) slot.release()
+          else if (slot.safe) slot.base.setAlpha(SAFE_ALPHA.max * left)
+          else {
+            slot.base.setAlpha(LIVE.base * left)
+            slot.fillImage.setAlpha(LIVE.fill * left)
+          }
+          continue
+        }
         if (slot.safe) {
           slot.base.setAlpha(alpha)
           continue
