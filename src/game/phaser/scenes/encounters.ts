@@ -8,7 +8,7 @@ import { cssColor } from '../color'
 import { acquireBubble } from '../mobs/bubbles'
 import type { Player } from '../player/Player'
 import type { RunDirector } from './RunDirector'
-import { createLabelState, labelFight, labelZone } from './swateLabel'
+import { createLabelState, labelFight, labelStrike, labelZone } from './swateLabel'
 import { addText } from './ui'
 
 // The encounters of the waystation. Each kind of `model/run/encounters.ts` has a spawner here that
@@ -409,8 +409,7 @@ function spawnSwate(host: EncounterHost, x: number): Encounter {
   let fallSpin = 0
   let landAt = 0
   const strike = (hit: HitEvent) => {
-    if (hit.attacker.team !== 'player') return
-    const result = state.hit(clock)
+    const result = labelStrike(state, hit.attacker, host.player, clock)
     if (result === 'ignored') return
     wobbleMs = LABEL_WOBBLE_MS
     if (result === 'peeled') return
@@ -433,6 +432,7 @@ function spawnSwate(host: EncounterHost, x: number): Encounter {
     id: 'swate-label',
     team: 'neutral',
     killer: null,
+    silent: true,
     hurtbox: () => hurtbox,
     facing: () => 1,
     position: () => feet,

@@ -38,6 +38,11 @@ export function createLabelState(needed = LABEL_HITS, cooldownMs = LABEL_HIT_COO
   }
 }
 
+// Counts a hit only when the player itself landed it, not a stand-in, familiar or echo.
+export function labelStrike(state: LabelState, attacker: unknown, player: unknown, nowMs: number): LabelHit {
+  return attacker === player ? state.hit(nowMs) : 'ignored'
+}
+
 interface Registry<T> {
   register(combatant: T): void
   unregister(combatant: T): void

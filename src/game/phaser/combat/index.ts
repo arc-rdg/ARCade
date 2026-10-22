@@ -92,6 +92,7 @@ export function createCombatWorld(scene: Phaser.Scene, options: CombatWorldOptio
     }
     const taken = target.receiveHit(event)
     if (typeof taken === 'number') event.damage = taken
+    if (target.silent) return
     hitStop.hit(attack.spec.hitStopMs)
     feedback.hit(point, event.damage, crit)
     emit('hit', event)

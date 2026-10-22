@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SWATE_HEIGHT, SWATE_LABEL } from '../../../src/game/phaser/art/swate'
-import { createLabelState, LABEL_HIT_COOLDOWN_MS, LABEL_HITS, labelFight, labelZone } from '../../../src/game/phaser/scenes/swateLabel'
+import { createLabelState, LABEL_HIT_COOLDOWN_MS, LABEL_HITS, labelFight, labelStrike, labelZone } from '../../../src/game/phaser/scenes/swateLabel'
 
 const STEP = LABEL_HIT_COOLDOWN_MS + 1
 
@@ -82,5 +82,15 @@ describe('the label during the trader fight', () => {
     labelFight(combat, 'label', state, true)
     labelFight(combat, 'label', state, false)
     expect(combat.live.has('label')).toBe(false)
+  })
+})
+
+describe('who counts on the label', () => {
+  it('counts the player and ignores stand-ins', () => {
+    const player = {}
+    const state = createLabelState()
+    expect(labelStrike(state, {}, player, 0)).toBe('ignored')
+    expect(labelStrike(state, player, player, STEP)).toBe('peeled')
+    expect(state.hits).toBe(1)
   })
 })

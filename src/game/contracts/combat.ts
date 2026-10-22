@@ -48,6 +48,8 @@ export interface Combatant {
   // nothing means hit.damage was taken unchanged.
   receiveHit(hit: HitEvent): number | void
   isDead(): boolean
+  // A prop: its hits skip hit-stop, damage numbers and the 'hit' listeners (procs, plunge bounce).
+  readonly silent?: boolean
   // Combatants without it ignore freezes and slows.
   applyStatus?(status: StatusEffect): void
 }
