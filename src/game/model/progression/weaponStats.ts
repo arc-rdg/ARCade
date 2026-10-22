@@ -53,9 +53,9 @@ const row = (name: string, hits: number[], timeMs: number, reach?: number): Row 
 const twice = (damage: number) => [damage, damage]
 const dual = (damage: number) => [damage * 0.75, damage * 0.75]
 
-const STAFF_LIGHT = [row('Staff jab', [12], 350, 72), row('Staff jab', [12], 350, 72), row('Staff thrust', [20], 440, 76)]
+const STAFF_LIGHT = [row('Staff jab', [12], 350, 80.4), row('Staff jab', [12], 350, 80.4), row('Staff thrust', [20], 440, 89.2)]
 // The staff is the only weapon in both slots, so its heavy half has an entry of its own.
-const STAFF_HEAVY: Entry = { slot: 'heavy', rows: [[row('Staff slam', [36], 760, 70)], [row('Staff slam', [36], 760, 70)]], notes: ['Slow overhead slam', 'Slow overhead slam'] }
+const STAFF_HEAVY: Entry = { slot: 'heavy', rows: [[row('Staff slam', [36], 760, 74.8)], [row('Staff slam', [36], 760, 74.8)]], notes: ['Slow overhead slam', 'Slow overhead slam'] }
 
 // A legendary weapon has one form, so both tiers read the same rows.
 const legendary = (slot: WeaponSlot, rows: Row[], note: string): Entry => ({ slot, rows: [rows, rows], notes: [note, note] })
@@ -86,12 +86,12 @@ const TABLE: Record<PlayerWeaponId, Entry> = {
   scalpel: {
     slot: 'light',
     rows: [
-      [row('Scalpel cut', [12], 320, 52), row('Scalpel cut', [12], 320, 52), row('Scalpel cut', [12], 320, 52), row('Scalpel slash', [20], 390, 52)],
+      [row('Scalpel cut', [12], 320, 59.2), row('Scalpel cut', [12], 320, 59.2), row('Scalpel cut', [12], 320, 59.2), row('Scalpel slash', [20], 390, 64)],
       [
-        row('Scalpel cut', dual(12), 320, 52),
-        row('Scalpel cut', dual(12), 320, 52),
-        row('Scalpel cut', dual(12), 320, 52),
-        row('Scalpel slash', dual(20), 390, 52),
+        row('Scalpel cut', dual(12), 320, 59.2),
+        row('Scalpel cut', dual(12), 320, 59.2),
+        row('Scalpel cut', dual(12), 320, 59.2),
+        row('Scalpel slash', dual(20), 390, 64),
       ],
     ],
     notes: ['Very fast string of four', 'Every cut hits twice'],
@@ -99,8 +99,8 @@ const TABLE: Record<PlayerWeaponId, Entry> = {
   sequenceWhip: {
     slot: 'light',
     rows: [
-      [row('Whip lash', [13], 390, 74), row('Whip crack', [17], 470, 74)],
-      [row('Whip lash', [13], 390, 74), row('Whip crack', [17], 470, 74)],
+      [row('Whip lash', [13], 390, 77.6), row('Whip crack', [17], 470, 80)],
+      [row('Whip lash', [13], 390, 77.6), row('Whip crack', [17], 470, 80)],
     ],
     notes: ['Long reach, pushes enemies away', 'Pulls enemies in'],
   },
@@ -111,7 +111,7 @@ const TABLE: Record<PlayerWeaponId, Entry> = {
   },
   beakerHammer: {
     slot: 'heavy',
-    rows: [[row('Beaker smash', [28, 9], 700, 58)], [row('Beaker smash', [30, 13], 700, 58)]],
+    rows: [[row('Beaker smash', [28, 9], 700, 61.6)], [row('Beaker smash', [30, 13], 700, 61.6)]],
     notes: ['Overhead smash with ground waves', 'Harder smash, bigger waves'],
   },
   bunsenStaff: {
@@ -135,7 +135,7 @@ const TABLE: Record<PlayerWeaponId, Entry> = {
     'arc sync fires the enemy shots back, up to 70',
   ),
   gitLfs: legendary('heavy', [row('git lfs push', [30, ...LFS_ROLL], 760)], 'A huge file that keeps hitting as it rolls'),
-  publicationPress: legendary('heavy', [row('Publish', [48], 680, 64)], 'Freezes enemies near you, the next hit shatters'),
+  publicationPress: legendary('heavy', [row('Publish', [48], 680, 66.4)], 'Freezes enemies near you, the next hit shatters'),
 }
 
 // The tier 2 name is the one the card description announces ("Picking it again gives X.").

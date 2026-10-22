@@ -20,8 +20,8 @@ describe('changeText', () => {
 describe('buildSummary weapons', () => {
   it('shows the staff in both slots at the base values', () => {
     const [light, heavy] = buildSummary(createBuild()).weapons
-    expect(light).toMatchObject({ name: 'Staff', slot: 'light', damageText: '14.7', reachText: '76' })
-    expect(heavy).toMatchObject({ name: 'Staff', slot: 'heavy', damageText: '36', reachText: '70' })
+    expect(light).toMatchObject({ name: 'Staff', slot: 'light', damageText: '14.7', reachText: '89' })
+    expect(heavy).toMatchObject({ name: 'Staff', slot: 'heavy', damageText: '36', reachText: '75' })
   })
 
   it('adds the damage, attack speed and range bonus to the weapon lines', () => {
@@ -29,7 +29,7 @@ describe('buildSummary weapons', () => {
     const [light] = buildSummary(build).weapons
     expect(light.damageText).toBe('14.7 -> 17.1 (+17%)')
     expect(light.speedText).toBe('2.6 -> 2.9 (+12%)')
-    expect(light.reachText).toBe('76 -> 87 (+15%)')
+    expect(light.reachText).toBe('89 -> 103 (+15%)')
   })
 
   it('names a tier 2 weapon and keeps shots ranged', () => {

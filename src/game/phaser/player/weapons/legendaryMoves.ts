@@ -2,7 +2,7 @@ import type { Combatant } from '../../../contracts/combat'
 import type { AttackContext, WeaponMoveset } from '../../../contracts/player'
 import { aimedVelocity, opposingTeam } from './helpers'
 import type { MeleeHit, Shot, Timing } from './kit'
-import { activeMs, burst, fireShot, later, memoMoves, move, muzzle, placeBlock, spawnMelee } from './kit'
+import { activeMs, burst, fireShot, later, lungeReach, memoMoves, move, muzzle, placeBlock, spawnMelee } from './kit'
 import { UNGROUPED } from './scheduler'
 import { NO_UP_LIGHT } from './variants'
 
@@ -239,7 +239,7 @@ function publish(ctx: AttackContext): void {
   burst(ctx, cx, feet.y - 6, 'crit', 3)
 }
 
-const PRESS: MeleeHit = { x: -6, y: -64, w: 70, h: 64, damage: 48, knockback: { x: 200, y: -260 }, hitStopMs: 80, tags: ['heavy', PUBLISH_TAG] }
+const PRESS: MeleeHit = { x: -6, y: -64, w: 70 + lungeReach(40), h: 64, damage: 48, knockback: { x: 200, y: -260 }, hitStopMs: 80, tags: ['heavy', PUBLISH_TAG] }
 
 export const pressMoveset: WeaponMoveset = {
   id: 'publicationPress',

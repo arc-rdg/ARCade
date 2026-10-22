@@ -11,6 +11,7 @@ import {
   groundBelow,
   later,
   linger,
+  lungeReach,
   memoMoves,
   memoTier,
   move,
@@ -237,7 +238,7 @@ export const beakerMoveset: WeaponMoveset = {
     const smash: MeleeHit = {
       x: -6,
       y: -62,
-      w: 64,
+      w: 64 + lungeReach(60),
       h: 62,
       damage: tier === 2 ? 30 : 28,
       knockback: { x: 240, y: -280 },

@@ -1,6 +1,6 @@
 import type { HitShape } from '../../contracts/combat'
 import type { AttackContext, AttackMove, WeaponMoveset } from '../../contracts/player'
-import { burst, groundBelow, streak } from './weapons/kit'
+import { burst, groundBelow, lungeReach, streak } from './weapons/kit'
 
 interface StaffHit {
   // Rect relative to the player's feet, facing right. x and w grow with the melee range stat.
@@ -35,7 +35,7 @@ function move(name: string, timing: Omit<AttackMove, 'name' | 'onActive'>, hit: 
 // The staff is drawn 54 units long (58 at tier 2) from the hand, so at the strike it reaches about
 // 70 units ahead of the feet, a little below the hip. The boxes cover the drawn staff and the lower
 // part of the swing's smear. The move layer adds a small margin on top.
-const JAB_SHAPE = { x: 4, y: -46, w: 68, h: 36 }
+const JAB_SHAPE = { x: 4, y: -46, w: 68 + lungeReach(140), h: 36 }
 
 const LIGHT: AttackMove[] = [
   move(
@@ -51,7 +51,7 @@ const LIGHT: AttackMove[] = [
   move(
     'Staff thrust',
     { startupMs: 130, activeMs: 90, recoveryMs: 300, cancelAfterMs: 220, allowedInAir: true },
-    { shape: { x: 4, y: -46, w: 72, h: 36 }, damage: 20, knockback: { x: 300, y: -160 }, hitStopMs: 55, tags: ['light'] },
+    { shape: { x: 4, y: -46, w: 72 + lungeReach(220), h: 36 }, damage: 20, knockback: { x: 300, y: -160 }, hitStopMs: 55, tags: ['light'] },
   ),
 ]
 
@@ -59,7 +59,7 @@ const HEAVY: AttackMove[] = [
   move(
     'Staff slam',
     { startupMs: 320, activeMs: 120, recoveryMs: 460, cancelAfterMs: 320, allowedInAir: false },
-    { shape: { x: -10, y: -68, w: 80, h: 68 }, damage: 36, knockback: { x: 260, y: -260 }, hitStopMs: 70, tags: ['heavy'] },
+    { shape: { x: -10, y: -68, w: 80 + lungeReach(80), h: 68 }, damage: 36, knockback: { x: 260, y: -260 }, hitStopMs: 70, tags: ['heavy'] },
   ),
 ]
 

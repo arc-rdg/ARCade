@@ -126,7 +126,7 @@ describe('weaponStats table against the real movesets', () => {
       }
       const melee = hits.flatMap((hit) => (hit.reach === null ? [] : [hit.reach]))
       if (row.reach === 'ranged') expect(melee, move.name).toEqual([])
-      else expect(Math.max(...melee), move.name).toBe(row.reach)
+      else expect(Math.max(...melee), move.name).toBeCloseTo(row.reach as number, 5)
       const declared = heavyOf(move)
       if (declared) expect([row.damages[0], sum(row.damages)], move.name).toContain(declared.damage)
     })

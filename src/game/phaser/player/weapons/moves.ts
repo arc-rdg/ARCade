@@ -4,7 +4,7 @@ import type { WeaponSlot } from '../../../contracts/progression'
 import type { Core, Feature } from './core'
 import { forgivingShape } from './helpers'
 import type { Point } from './helpers'
-import { SUB_HITS, bindFx, bindScheduler, heavyOf, spawnShockwaves, streak } from './kit'
+import { SUB_HITS, bindFx, bindScheduler, heavyOf, lungeReach, spawnShockwaves, streak } from './kit'
 import type { HeavyDeclaration } from './kit'
 import { airHeavyOf, dashHeavyOf, dashLightOf, upHeavyOf, upLightOf, upward } from './variants'
 
@@ -25,7 +25,7 @@ const SLAM_WAVES = { damage: 12, width: 16, height: 18, speed: 240, distance: 16
 
 // Reach of the Triple Combo spin behind and ahead of the feet.
 const SPIN_BACK = 56
-const SPIN_FRONT = 80
+const SPIN_FRONT = 80 + lungeReach(120)
 
 // Wraps the weapon movesets, including their air, dash and up variants (or the fallbacks from
 // variants.ts). Every move runs through a copy of the attack context whose combat world makes the

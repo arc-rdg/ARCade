@@ -1,7 +1,7 @@
 import type { AttackContext, AttackMove, WeaponMoveset } from '../../../contracts/player'
 import { aimedVelocity } from './helpers'
 import type { MeleeHit, Shot, Timing } from './kit'
-import { activeMs, dashLightTiming, fireShot, later, memoMoves, memoTier, move, muzzle, overheadBox, spawnMelee, streak, variantTiming } from './kit'
+import { activeMs, dashLightTiming, fireShot, later, memoMoves, memoTier, move, muzzle, lungeReach, overheadBox, spawnMelee, streak, variantTiming } from './kit'
 import { NO_UP_LIGHT } from './variants'
 
 // The four light weapons. The catalog puts them in the light slot only, so each one defines a
@@ -140,10 +140,10 @@ export const pipetteMoveset: WeaponMoveset = {
 
 // Scalpel: a very fast short string of four. Tier 2 (Dual Scalpels) hits twice per move.
 // The scalpel is drawn 34 to 36 units long, so the cut reaches about 52 units ahead of the feet.
-const stab = (damage: number, knockback: { x: number; y: number }, hitStopMs: number): MeleeHit => ({
+const stab = (damage: number, knockback: { x: number; y: number }, hitStopMs: number, reach = 0): MeleeHit => ({
   x: 2,
   y: -38,
-  w: 50,
+  w: 50 + reach,
   h: 34,
   damage,
   knockback,
@@ -182,20 +182,20 @@ export const scalpelMoveset: WeaponMoveset = {
     if (slot === 'heavy') return []
     const quick = { x: 70, y: -20 }
     return [
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25), tier),
-      scalpelMove('Scalpel slash', lightTiming(115, 60, 280, 215), stab(20, { x: 200, y: -120 }, 45), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25, lungeReach(120)), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25, lungeReach(120)), tier),
+      scalpelMove('Scalpel cut', lightTiming(95, 50, 200, 175), stab(12, quick, 25, lungeReach(120)), tier),
+      scalpelMove('Scalpel slash', lightTiming(115, 60, 280, 215), stab(20, { x: 200, y: -120 }, 45, lungeReach(200)), tier),
     ]
   }),
 }
 
 // Sequence whip: a long hitbox, tall enough for the drawn whip and its smear. Tier 2 pulls
 // hit enemies towards the player (negative knockback x).
-const lash = (damage: number, push: number, hitStopMs: number, tier: 1 | 2): MeleeHit => ({
+const lash = (damage: number, push: number, hitStopMs: number, tier: 1 | 2, reach: number): MeleeHit => ({
   x: 4,
   y: -38,
-  w: 70,
+  w: 70 + reach,
   h: 30,
   damage,
   knockback: tier === 2 ? { x: -120, y: -30 } : { x: push, y: -40 },
@@ -241,8 +241,8 @@ export const whipMoveset: WeaponMoveset = {
   moves: memoMoves((slot, tier) => {
     if (slot === 'heavy') return []
     return [
-      move('Whip lash', lightTiming(130, 75, 260, 185), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(13, 130, 30, tier))),
-      move('Whip crack', lightTiming(150, 85, 320, 235), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(17, 200, 45, tier))),
+      move('Whip lash', lightTiming(130, 75, 260, 185), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(13, 130, 30, tier, lungeReach(60)))),
+      move('Whip crack', lightTiming(150, 85, 320, 235), (ctx, self) => spawnMelee(ctx, activeMs(ctx, self), lash(17, 200, 45, tier, lungeReach(100)))),
     ]
   }),
 }

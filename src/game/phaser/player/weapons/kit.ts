@@ -300,6 +300,10 @@ export const variantTiming = (startupMs: number, activeMs: number, recoveryMs: n
   ...extra,
 })
 
+// Distance a lunge of this speed (world units per second) used to carry the mage in its 60 ms push.
+// Moves that lost their lunge reach this much further with the hitbox instead.
+export const lungeReach = (lunge: number): number => lunge * 0.06
+
 // Dash lights carry the dash, never lock and cancel right after their hit.
 export const dashLightTiming = (startupMs: number, activeMs: number, recoveryMs: number): Timing =>
   variantTiming(startupMs, activeMs, recoveryMs, 0)
