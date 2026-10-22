@@ -321,7 +321,7 @@ export class TutorialScene extends Phaser.Scene implements TutorialControl {
     const step = this.tutorial.current()
     this.angry.setAngry(step?.id === 'dodge' || this.free)
     this.portal?.setAlpha(this.portalOpen() ? 1 : SHUT_ALPHA)
-    if (!step) {
+    if (!step && !this.free) {
       this.finish()
       return
     }
