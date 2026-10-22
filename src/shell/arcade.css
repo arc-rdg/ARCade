@@ -907,7 +907,10 @@
   align-self: stretch;
 }
 
-/* The compact title card starts below the corner buttons instead of running under them. */
-.arcade-root[data-fullscreen] .arcade-screen[data-layout='compact']:not(.arcade-screen-settings) {
-  padding-top: calc(12 * var(--u) + 14px);
+/* The compact title card starts below the corner icons instead of running under them. They show
+   with a fine pointer, fullscreen button or not. */
+@media (any-pointer: fine) {
+  .arcade-root .arcade-screen[data-layout='compact']:not(.arcade-screen-settings) {
+    padding-top: calc(12 * var(--u) + 14px);
+  }
 }

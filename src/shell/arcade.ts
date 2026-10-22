@@ -243,7 +243,7 @@ export function mountArcade(el: HTMLElement, options: ArcadeOptions): ArcadeHand
     }
     const newPathButton = () => h('button', { type: 'button', class: 'arcade-btn', 'data-action': 'new-path', onclick: newPath }, 'New path')
     const startTraining = () => setMode('playing', true)
-    const trainingTag = () => (trainingSeen ? null : h('span', { class: 'arcade-new', id: hintId }, 'New here?'))
+    const trainingTag = () => (trainingSeen ? null : h('span', { class: 'arcade-new', id: hintId, 'aria-hidden': 'true' }, 'New here?'))
     const trainingButton = () =>
       h(
         'span',
