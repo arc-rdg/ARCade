@@ -17,10 +17,15 @@ export type GameEvent =
   | { type: 'menuRequested'; choice: 'retry' | 'newPath' | 'menu' }
   // The player chose Settings in the pause menu. The game stays paused; the host shows its key bindings.
   | { type: 'settingsRequested' }
+  // The Training room loaded. No run exists until the finish card's Start run sends runStarted.
+  | { type: 'tutorialStarted' }
+  | { type: 'tutorialFinished' }
 
 // From React to the game.
 export type GameCommand =
   | { type: 'start'; plan: RunPlan }
+  // The Training room. The plan, when there is one, is what its finish card can start.
+  | { type: 'startTutorial'; plan: RunPlan | null }
   | { type: 'pause'; paused: boolean }
   | { type: 'setBindings'; bindings: Bindings }
   | { type: 'quitToMenu' }

@@ -24,6 +24,8 @@ export const SCENE = {
   traderLoot: 'TraderLoot',
   death: 'Death',
   victory: 'Victory',
+  tutorial: 'Tutorial',
+  tutorialHud: 'TutorialHud',
   testRoom: 'TestRoom',
   mobSandbox: 'MobSandbox',
   bossSandbox: 'BossSandbox',
