@@ -83,6 +83,8 @@ export interface Part {
   from: number
   to: number
   safe: boolean
+  // A turned zone: its from and to are not world x ranges, so it is never trimmed.
+  turned: boolean
   // Which platform or which side of the boss the part belongs to.
   key: number
   // Time since the strike (run.elapsedMs) when the part is done. Infinity until the attack knows.
@@ -270,7 +272,7 @@ function show(run: AttackRun, env: AttackEnv, spec: ZoneSpec, key = 0): void {
   const zone = env.telegraphs.show(spec)
   run.zones.push(zone)
   const from = spec.fill === 'right' ? spec.x : spec.fill === 'left' ? spec.x - spec.w : spec.x - spec.w / 2
-  run.parts.push({ zone, from, to: from + spec.w, safe: !!spec.safe, key, atMs: Infinity })
+  run.parts.push({ zone, from, to: from + spec.w, safe: !!spec.safe, turned: !!spec.rotation, key, atMs: Infinity })
 }
 
 // The danger zones all end when their hitboxes do, atMs after the strike. Safe spots and parts that
@@ -282,6 +284,7 @@ function endDanger(run: AttackRun, atMs: number): void {
 // Keeps only the part of the zone inside [lo, hi], where a hitbox is or will be. Nothing left to keep
 // ends the part now.
 function keepRange(run: AttackRun, part: Part, lo: number, hi: number): void {
+  if (part.turned) return
   const a = Math.max(lo, part.from)
   const b = Math.min(hi, part.to)
   if (b <= a) part.atMs = Math.min(part.atMs, run.elapsedMs)

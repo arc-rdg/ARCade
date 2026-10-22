@@ -311,13 +311,13 @@ export function createAdds(deps: AddsDeps): Adds {
         const m = slot.motion
         const playerX = player.position().x
         slot.face = playerX >= m.x ? 1 : -1
+        tickStatus(slot.status, dtMs)
         if (slot.windMs > 0) {
           slot.windMs = Math.max(0, slot.windMs - dtMs)
           slot.contactMs = Math.max(0, slot.contactMs - dtMs)
           windUp(slot, dtMs)
           continue
         }
-        tickStatus(slot.status, dtMs)
         const scale = statusTimeScale(slot.status)
         // Stops a few units short of the player on the same surface.
         if (m.hopMs >= 0 || m.ledge !== deps.perch.ledge || Math.abs(playerX - m.x) > 6) {
@@ -357,6 +357,10 @@ export function createAdds(deps: AddsDeps): Adds {
       for (const slot of slots) {
         if (slot.alive) combat.unregister(slot)
         slot.sprite.destroy()
+        slot.crack.destroy()
+        slot.ring.destroy()
+        slot.chip.destroy()
+        for (const spark of slot.sparks) spark.sprite.destroy()
       }
     },
   }

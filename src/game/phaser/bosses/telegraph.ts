@@ -80,6 +80,12 @@ export interface TelegraphPool {
   destroy(): void
 }
 
+// Crops an image of a flat zone to the world range a to b, along the zone's width.
+function cropTo(slot: Slot, image: Phaser.GameObjects.Image, a: number, b: number) {
+  const k = image.frame.realWidth / slot.width
+  image.setCrop((a - slot.left) * k, 0, Math.max(0.01, b - a) * k, image.frame.realHeight)
+}
+
 // Danger zones and safe spots share a pool of image pairs: a dim image of the whole zone and a
 // solid red copy on top that fills up over the telegraph time and is full when the attack hits.
 export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): TelegraphPool {
@@ -116,6 +122,10 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
         slot.base.setAlpha(LIVE.base)
         slot.fillImage.setAlpha(LIVE.fill).setTint(FLASH_TINT)
         slot.setProgress(1)
+        // The full fill must not show past a zone that was trimmed before it went live.
+        if (slot.mode !== 'radial' && (slot.shownFrom !== slot.left || slot.shownTo !== slot.left + slot.width)) {
+          cropTo(slot, slot.fillImage, slot.shownFrom, slot.shownTo)
+        }
         slot.flashAt = scene.time.now
       },
       trim(from, to) {
@@ -125,10 +135,8 @@ export function createTelegraphPool(scene: Phaser.Scene, art: ScribbleArt): Tele
         if (a === slot.shownFrom && b === slot.shownTo) return
         slot.shownFrom = a
         slot.shownTo = b
-        for (const image of [slot.base, slot.fillImage]) {
-          const k = image.frame.realWidth / slot.width
-          image.setCrop((a - slot.left) * k, 0, Math.max(0.01, b - a) * k, image.frame.realHeight)
-        }
+        cropTo(slot, slot.base, a, b)
+        cropTo(slot, slot.fillImage, a, b)
       },
       fade() {
         if (slot.used && slot.fadeAt < 0) slot.fadeAt = scene.time.now
