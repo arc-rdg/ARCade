@@ -16,6 +16,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 0.1.7 - 2026-10-23
+
+### 🔄 Changed
+
+- The downward attack now needs a real jump or a fall. A quick tap of jump is only a hop and does not allow it, and an air dash takes it away until your next jump. Pressed on the way up, it waits for the top of the jump and then smashes down. Hitting an enemy with it bounces you to full jump height.
+- Technical Replicates (the old Diminishing Returns) allows up to 3 downward attacks before you land, each with a full bounce, instead of unlimited ones with shrinking bounces.
+- Attacks no longer push you forward. You only move with your keys, and melee hits reach as far as before.
+- Sharpened gives +8% damage per stack instead of +15%.
+- Level-up offers and the trader show uncommon and rare augments a bit more often.
+- Melee monsters press you now. They notice you from further away and walk at you, make a short lunge at the end of their wind-up if you backed off, and climb down off platforms to reach you. Ranged monsters still hold their ground.
+- The angry dummy in Training swings for longer and draws its swing, so the dodge is easier to time. A missed dash tells you whether you were too early, too late or not close enough, and a good dodge no longer gets hit afterwards.
+
+### 🔥 Removed
+
+- The Paywall Jump wall jump augment. There were hardly any walls to use it on.
+
 ## 0.1.6 - 2026-10-22
 
 ### ✨ Added
