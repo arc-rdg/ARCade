@@ -96,10 +96,8 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   const motor = createMotorState()
   const motorEnv: MotorEnv = {
     grounded: false,
-    touchingWallLeft: false,
-    touchingWallRight: false,
     stats: { moveSpeed: 1, dashCooldownMs: 0 },
-    mechanics: { doubleJump: false, airDash: false, wallJump: false, hatGlide: false, noJump: false, infiniteAirDash: false },
+    mechanics: { doubleJump: false, airDash: false, hatGlide: false, noJump: false, infiniteAirDash: false },
     speedScale: 1,
     actionsLocked: false,
   }
@@ -108,7 +106,6 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     motorEnv.stats.dashCooldownMs = build.stats.dashCooldownMs
     motorEnv.mechanics.doubleJump = build.mechanics.includes('doubleJump')
     motorEnv.mechanics.airDash = build.mechanics.includes('airDash')
-    motorEnv.mechanics.wallJump = build.mechanics.includes('wallJump')
     motorEnv.mechanics.hatGlide = build.mechanics.includes('hatGlide')
     motorEnv.mechanics.noJump = build.corrupted.includes('deprecatedJump')
     motorEnv.mechanics.infiniteAirDash = build.corrupted.includes('infiniteScroll')
@@ -379,8 +376,6 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
     const wasGrounded = grounded
     grounded = justUnfrozen ? grounded : body.blocked.down
     motorEnv.grounded = grounded
-    motorEnv.touchingWallLeft = body.blocked.left
-    motorEnv.touchingWallRight = body.blocked.right
     const onOneWay = standingOnOneWay
     standingOnOneWay = false
     justUnfrozen = false

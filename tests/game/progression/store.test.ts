@@ -103,7 +103,7 @@ describe('buying a card', () => {
   })
 
   it('refuses a card the fragments do not cover', () => {
-    const rare = card('mechanic.wallJump')
+    const rare = card('mechanic.tripleCombo')
     expect(stockState(createBuild(), PRICES.rare - 1, rare)).toBe('poor')
     expect(buyCard(createBuild(), PRICES.rare - 1, rare)).toBeNull()
     expect(stockState(createBuild(), PRICES.rare, rare)).toBe('buy')

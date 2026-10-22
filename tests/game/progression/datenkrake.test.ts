@@ -56,7 +56,7 @@ describe('what the Datenkrake may take', () => {
   it('takes one stack of a stat card and leaves the others', () => {
     const build = midRun()
     const after = removeAugment(build, 'stat.sharpened')
-    expect(after.stats.damage).toBeCloseTo(1.15)
+    expect(after.stats.damage).toBeCloseTo(1.08)
     const robe = removeAugment(build, 'stat.thickRobe')
     expect(robe.stats.maxHp).toBe(100)
     expect(robe.hp).toBeLessThanOrEqual(robe.stats.maxHp)

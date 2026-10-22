@@ -21,7 +21,6 @@ export const FLAVOR: Record<string, string> = {
   'weapon.publicationPress': 'Once it is published, it stays exactly like that.',
   'mechanic.doubleJump': 'Nobody knows who jumped. Twice.',
   'mechanic.airDash': 'Straight into the cloud, no cable needed.',
-  'mechanic.wallJump': 'Open access, the athletic way.',
   'mechanic.tripleCombo': 'Third time lucky, fourth time published.',
   'mechanic.groundSlam': 'Everything at once, straight onto the floor.',
   'mechanic.parry': 'We thank the reviewer and respectfully disagree.',

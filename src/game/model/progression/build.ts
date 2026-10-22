@@ -107,6 +107,9 @@ const FRESH_BATTERY_MS = 500
 const freshBattery: StatStep = (stats) =>
   stats.dashCooldownMs > STAT_CAPS.dashCooldownMs ? { ...stats, dashCooldownMs: Math.max(STAT_CAPS.dashCooldownMs, stats.dashCooldownMs - FRESH_BATTERY_MS) } : stats
 
+// Each Sharpened card adds this much damage.
+const SHARPENED = 1.08
+
 const thickRobe: StatStep = (stats) => ({ ...stats, maxHp: Math.round(stats.maxHp * 1.15) })
 
 interface StatCard {
@@ -121,7 +124,7 @@ interface StatCard {
 const STAT_CARDS = new Map<string, StatCard>([
   ['stat.swiftFeet', { field: 'moveSpeed', step: raise('moveSpeed', (value) => value * 1.12) }],
   ['stat.quickHands', { field: 'attackSpeed', step: raise('attackSpeed', (value) => value * 1.12) }],
-  ['stat.sharpened', { field: 'damage', step: raise('damage', (value) => value * 1.15) }],
+  ['stat.sharpened', { field: 'damage', step: raise('damage', (value) => value * SHARPENED) }],
   ['stat.keenEye', { field: 'critChance', step: raise('critChance', (value) => value + 0.05) }],
   ['stat.freshBattery', { field: 'dashCooldownMs', step: freshBattery }],
   ['stat.thickRobe', { field: 'maxHp', step: thickRobe }],
@@ -209,7 +212,6 @@ const EFFECTS = new Map<string, Effect>([
   ['weapon.publicationPress', legendaryWeapon('heavy', 'publicationPress')],
   ['mechanic.doubleJump', mechanic('doubleJump')],
   ['mechanic.airDash', mechanic('airDash')],
-  ['mechanic.wallJump', mechanic('wallJump')],
   ['mechanic.tripleCombo', mechanic('tripleCombo')],
   ['mechanic.groundSlam', mechanic('groundSlam')],
   ['mechanic.parry', mechanic('parry')],
@@ -239,7 +241,7 @@ const EFFECTS = new Map<string, Effect>([
 // Cards a corrupted augment makes useless are not offered: no jump means no extra jumps or glide,
 // and Rogue Admin crits every hit already.
 const BLOCKED_BY: Partial<Record<CorruptedId, readonly string[]>> = {
-  deprecatedJump: ['mechanic.doubleJump', 'mechanic.wallJump', 'mechanic.hatGlide'],
+  deprecatedJump: ['mechanic.doubleJump', 'mechanic.hatGlide'],
   rogueAdmin: ['stat.keenEye'],
 }
 

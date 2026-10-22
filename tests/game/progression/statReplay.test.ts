@@ -122,7 +122,7 @@ describe('the encounters that take a stat stack', () => {
     expect(replacementsFor(build, 'stat.freshBattery').map((card) => card.id)).toContain('stat.sharpened')
     const result = refineCard(build, 99, 1, 'stat.freshBattery', 'stat.sharpened')
     expect(result?.build.stats.dashCooldownMs).toBe(375)
-    expect(result?.build.stats.damage).toBeCloseTo(1.15)
+    expect(result?.build.stats.damage).toBeCloseTo(1.08)
     expect(result && statStacks(result.build)).toEqual({ 'stat.freshBattery': 1, 'stat.sharpened': 1 })
   })
 })

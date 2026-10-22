@@ -11,7 +11,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Movement and combat sandbox. Click the canvas, then use WASD, Space, Shift and the mouse buttons. F3 shows the debug panel, keys 1 to 4 toggle double jump, air dash, wall jump and hat glide.',
+          'Movement and combat sandbox. Click the canvas, then use WASD, Space, Shift and the mouse buttons. F3 shows the debug panel, keys 1 to 3 toggle double jump, air dash and hat glide.',
       },
     },
   },

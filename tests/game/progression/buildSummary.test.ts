@@ -27,7 +27,7 @@ describe('buildSummary weapons', () => {
   it('adds the damage, attack speed and range bonus to the weapon lines', () => {
     const build = pick(createBuild(), 'stat.sharpened', 'stat.sharpened', 'stat.quickHands', 'stat.longReach')
     const [light] = buildSummary(build).weapons
-    expect(light.damageText).toBe('14.7 -> 19.4 (+32%)')
+    expect(light.damageText).toBe('14.7 -> 17.1 (+17%)')
     expect(light.speedText).toBe('2.6 -> 2.9 (+12%)')
     expect(light.reachText).toBe('76 -> 87 (+15%)')
   })
@@ -88,8 +88,8 @@ describe('buildSummary stats', () => {
 
 describe('buildSummary mechanics and legendaries', () => {
   it('lists the names of the owned ones', () => {
-    const summary = buildSummary(pick(createBuild(), 'mechanic.doubleJump', 'mechanic.wallJump', 'legendary.peerReview'))
-    expect(summary.mechanics).toEqual(['Double Blind', 'Paywall Jump'])
+    const summary = buildSummary(pick(createBuild(), 'mechanic.doubleJump', 'mechanic.airDash', 'legendary.peerReview'))
+    expect(summary.mechanics).toEqual(['Double Blind', 'Cloud Upload'])
     expect(summary.legendaries).toEqual(['Peer Review'])
   })
 

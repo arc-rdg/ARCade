@@ -33,10 +33,8 @@ function setup(mechanics: Partial<MotorEnv['mechanics']> = {}) {
   const motor = createMotorState()
   const motorEnv: MotorEnv = {
     grounded: true,
-    touchingWallLeft: false,
-    touchingWallRight: false,
     stats: { moveSpeed: 1, dashCooldownMs: 2000 },
-    mechanics: { doubleJump: false, airDash: false, wallJump: false, hatGlide: false, ...mechanics },
+    mechanics: { doubleJump: false, airDash: false, hatGlide: false, ...mechanics },
     speedScale: 1,
     actionsLocked: false,
   }

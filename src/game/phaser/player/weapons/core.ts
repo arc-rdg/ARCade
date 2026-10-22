@@ -14,7 +14,6 @@ export type PassiveId = MechanicId | LegendaryId
 export const PASSIVE_IDS: readonly PassiveId[] = [
   'doubleJump',
   'airDash',
-  'wallJump',
   'tripleCombo',
   'groundSlam',
   'parry',

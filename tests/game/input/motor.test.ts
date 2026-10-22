@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { STEP_MS } from '../../../src/game/contracts/constants'
 import type { MotorAction, MotorEnv, MotorInput, MotorState } from '../../../src/game/model/input/motor'
-import { JUMP_VELOCITY, MOTOR, createMotorState, moveStarts, stepMotor } from '../../../src/game/model/input/motor'
+import { MOTOR, createMotorState, moveStarts, stepMotor } from '../../../src/game/model/input/motor'
 
 type Mechanics = MotorEnv['mechanics']
-const NO_MECHANICS: Mechanics = { doubleJump: false, airDash: false, wallJump: false, hatGlide: false }
+const NO_MECHANICS: Mechanics = { doubleJump: false, airDash: false, hatGlide: false }
 
 function env(overrides: Partial<MotorEnv> = {}): MotorEnv {
   return {
     grounded: false,
-    touchingWallLeft: false,
-    touchingWallRight: false,
     stats: { moveSpeed: 1, dashCooldownMs: 500 },
     mechanics: NO_MECHANICS,
     ...overrides,
@@ -155,34 +153,6 @@ describe('motor', () => {
     expect(first.jumped).toBe(true)
     const second = stepMotor(run(first, 100, input(['jump']), e), input(['jump'], ['jump']), e, STEP_MS)
     expect(second.jumped).toBe(false)
-  })
-
-  it('pushes away from the wall on a wall jump and ignores input towards it for a moment', () => {
-    const e = env({ touchingWallRight: true, mechanics: { ...NO_MECHANICS, wallJump: true } })
-    const falling = run(grounded(), 200, input(['right']), env())
-    const jumped = stepMotor(falling, input(['right', 'jump'], ['jump']), e, STEP_MS)
-    expect(jumped.vy).toBeCloseTo(-JUMP_VELOCITY + (MOTOR.gravity * STEP_MS) / 1000)
-    expect(jumped.vx).toBe(-MOTOR.wallJumpPush)
-    expect(jumped.facing).toBe(-1)
-    const later = run(jumped, 100, input(['right', 'jump']), env())
-    expect(later.vx).toBe(-MOTOR.wallJumpPush)
-
-    const without = stepMotor(falling, input(['right', 'jump'], ['jump']), env({ touchingWallRight: true }), STEP_MS)
-    expect(without.jumped).toBe(false)
-  })
-
-  it('allows a wall jump just inside the wall grace after the contact ends and refuses it just after', () => {
-    const mechanics = { ...NO_MECHANICS, wallJump: true }
-    const falling = run(grounded(), 200, input(), env())
-    const touched = stepMotor(falling, input(), env({ touchingWallRight: true, mechanics }), STEP_MS)
-    const jump = input(['jump'], ['jump'])
-
-    const early = stepAt(touched, MOTOR.wallGraceMs - 10, jump, env({ mechanics }))
-    expect(early.jumped).toBe(true)
-    expect(early.vx).toBe(-MOTOR.wallJumpPush)
-
-    const late = stepAt(touched, MOTOR.wallGraceMs + 10, jump, env({ mechanics }))
-    expect(late.jumped).toBe(false)
   })
 
   it('caps the fall speed while gliding with the hat', () => {

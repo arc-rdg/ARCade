@@ -313,7 +313,7 @@ never together. Their stat parts go past the card limits on purpose.
 | Augment | Boon | Curse | Loves it | Hates it |
 |---|---|---|---|---|
 | Big Data | +100% damage | 75% more damage taken | dodgers, ranged | face-tanking melee |
-| Deprecated jump() | max HP x2.5, healed | no jump of any kind, a kraken intern helps | grounded melee | double jump, wall jump, glide |
+| Deprecated jump() | max HP x2.5, healed | no jump of any kind, a kraken intern helps | grounded melee | double jump, glide |
 | Shadow IT | the dash hits for 22 | dash cooldown x2 | Rapid Release, Cloud Upload | builds that dodge with the dash |
 | Data Lake | standing still heals 5% max HP/s | move speed -30% | turrets: wand, pipette, disc | melee chasers |
 | Blockchain | hits chain to 2 more enemies for 50% | every attack costs 1 HP (never the last) | Data Reuse, crowds | low HP, fast mashing |
@@ -485,14 +485,14 @@ A dash attack that keeps its momentum carries 60% of the dash speed through star
 Heavy pressed in the air plays the weapon's air heavy, mostly a plunge with a landing hit and a
 short landing lock. The first hit of an air heavy (the fall or the landing ring) ends the plunge and
 bounces the mage up at 55% of the jump speed (about 30% of the jump height), free to steer and cancel at once.
-Only one air heavy fits in one airtime: until the mage lands, wall jumps or is teleported, another
+Only one air heavy fits in one airtime: until the mage lands or is teleported, another
 heavy press in the air does nothing (up and dash heavies still play). The bounce continues that
 airtime, so it gives back no jump or air dash, not even when the landing ring bounced the mage off
 the floor (`startPlunge`, `plungeBounced` and `airHeavyRefused` in `model/input/motor.ts`).
 The Diminishing Returns card (`serialDilution`) lifts the one-per-airtime rule for air heavies that hit: after a bounce
 another air heavy may start, up to 5 per airtime (`PLUNGE_CHAIN_MAX`). The first bounce is a full
 jump high and each next one lower, 75%, 50%, 30% and 15% of it (`CHAIN_BOUNCE_HEIGHTS`,
-`bounceFactor`). The count (`plungeChain`) starts over on the same landing, wall jump or teleport,
+`bounceFactor`). The count (`plungeChain`) starts over on the same landing or teleport,
 and the bounces still give back no jump, air dash or coyote time.
 Attacks during a dash, or up to 80 ms after it, play the dash light (no lock) or the
 dash heavy. Attacks with up held play an overhead version, and ranged weapons keep aiming at the cursor.
@@ -685,8 +685,8 @@ Start Storybook with `npm run storybook` (port 6006) and open these stories:
   running game.
 - `Game/Dev/FullRun` plays a whole run on the bundled Talinum ARC. Set the `seed` arg to replay a
   path.
-- `Game/Dev/TestRoom` is the movement and combat room. F3 shows the motor state, and keys 1 to 4
-  toggle double jump, air dash, wall jump and hat glide.
+- `Game/Dev/TestRoom` is the movement and combat room. F3 shows the motor state, and keys 1 to 3
+  toggle double jump, air dash and hat glide.
 - `Game/Dev/MobSandbox` puts every monster of a planned Talinum run on one long floor. N spawns a
   random monster next to the player and P a phantom.
 - `Game/Dev/BossSandbox` is one arena with a boss generated from a step of a planned Talinum run.
@@ -704,7 +704,7 @@ Click the canvas to give it keyboard focus.
 
 | What | Where |
 |---|---|
-| Run, jump, dash, coyote time, jump buffer, wall jump | `model/input/motor.ts` (`MOTOR`) |
+| Run, jump, dash, coyote time, jump buffer | `model/input/motor.ts` (`MOTOR`) |
 | Air heavy bounce and Diminishing Returns chain heights | `model/input/motor.ts` (`PLUNGE_BOUNCE_FACTOR`, `CHAIN_BOUNCE_HEIGHTS`) |
 | Mob hp, damage, speed and XP per mob (10, or 15 with an ontology accession) | `model/content/monster.ts` |
 | Mob behaviour timing (windups and their pose, ranged lead, back-away range, cooldown floor, bat dive, knockback, aggro range, blink and bomb timers) | `phaser/mobs/tuning.ts` |

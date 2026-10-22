@@ -5,7 +5,7 @@ import type { Core, Feature } from './core'
 import { centerOf, nearestLiving } from './helpers'
 
 // Combat effects of the mechanic cards that act through hits and abilities. The motion mechanics
-// (double jump, air dash, wall jump, hat glide) live in the player motor.
+// (double jump, air dash, hat glide) live in the player motor.
 
 export type AbilityFeature = Feature & { handler: AbilityHandler }
 

@@ -23,7 +23,6 @@ export type PlayerWeaponId =
 export type MechanicId =
   | 'doubleJump'
   | 'airDash'
-  | 'wallJump'
   | 'tripleCombo'
   | 'groundSlam'
   | 'parry'

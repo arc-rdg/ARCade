@@ -99,7 +99,7 @@ describe('applying a swap', () => {
     if (!result) return
     expect(result.cost).toBe(10)
     expect(result.fragments).toBe(15)
-    expect(result.build.stats.damage).toBeCloseTo(build.stats.damage / 1.15)
+    expect(result.build.stats.damage).toBeCloseTo(build.stats.damage / 1.08)
     expect(result.build.stats.moveSpeed).toBeCloseTo(1.12)
     expect(result.build.level).toBe(build.level)
     expect(result.build.xp).toBe(build.xp)

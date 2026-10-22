@@ -7,13 +7,13 @@ import { createRng } from '../../../src/game/contracts/rng'
 const countOf = (kind: PowerUpKind) => CARDS.filter((card) => card.kind === kind).length
 
 describe('catalog', () => {
-  it('has seven stat cards, twelve weapon cards (four legendary), 20 mechanics and seven legendaries', () => {
+  it('has seven stat cards, twelve weapon cards (four legendary), 19 mechanics and seven legendaries', () => {
     expect({
       stat: countOf('stat'),
       weapon: countOf('weapon'),
       mechanic: countOf('mechanic'),
       legendary: countOf('legendary'),
-    }).toEqual({ stat: 7, weapon: 12, mechanic: 20, legendary: 7 })
+    }).toEqual({ stat: 7, weapon: 12, mechanic: 19, legendary: 7 })
   })
 
   it('gives every catalog card an effect that applyCard accepts', () => {

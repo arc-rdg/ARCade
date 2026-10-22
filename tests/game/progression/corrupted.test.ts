@@ -57,7 +57,7 @@ describe('each corrupted augment', () => {
     expect(build.stats.maxHp).toBe(250)
     expect(build.hp).toBe(250)
     // Extra jumps and the glide are of no use any more, so they are not offered.
-    for (const id of ['mechanic.doubleJump', 'mechanic.wallJump', 'mechanic.hatGlide']) expect(canApply(build, id)).toBe(false)
+    for (const id of ['mechanic.doubleJump', 'mechanic.hatGlide']) expect(canApply(build, id)).toBe(false)
     expect(canApply(build, 'mechanic.airDash')).toBe(true)
   })
 
@@ -123,10 +123,8 @@ describe('each corrupted augment', () => {
     expect(build.stats.attackSpeed).toBeCloseTo(0.6)
     const env: MotorEnv = {
       grounded: false,
-      touchingWallLeft: false,
-      touchingWallRight: false,
       stats: { moveSpeed: 1, dashCooldownMs: 500 },
-      mechanics: { doubleJump: false, airDash: false, wallJump: false, hatGlide: false, infiniteAirDash: true },
+      mechanics: { doubleJump: false, airDash: false, hatGlide: false, infiniteAirDash: true },
     }
     expect(canDash({ ...createMotorState(), airDashUsed: true }, env)).toBe(true)
   })
@@ -141,23 +139,20 @@ describe('each corrupted augment', () => {
 
   it('stacks with the stat cards both ways', () => {
     const build = applyCard(corrupt('bigData'), 'stat.sharpened')
-    expect(build.stats.damage).toBeCloseTo(2.3)
+    expect(build.stats.damage).toBeCloseTo(2.16)
   })
 })
 
 describe('movement curses never trap the mage', () => {
   const env = (mechanics: Partial<MotorEnv['mechanics']>): MotorEnv => ({
     grounded: true,
-    touchingWallLeft: false,
-    touchingWallRight: false,
     stats: { moveSpeed: 1, dashCooldownMs: 0 },
-    mechanics: { doubleJump: true, airDash: false, wallJump: true, hatGlide: false, ...mechanics },
+    mechanics: { doubleJump: true, airDash: false, hatGlide: false, ...mechanics },
   })
 
-  it('Deprecated jump() takes the jump, the double jump and the wall jump, but not the dash', () => {
+  it('Deprecated jump() takes the jump and the double jump, but not the dash', () => {
     const state = createMotorState()
     expect(availableJump(state, env({ noJump: true }))).toBeNull()
-    expect(availableJump(state, env({ noJump: true, wallJump: true }))).toBeNull()
     expect(canDash(state, env({ noJump: true }))).toBe(true)
     expect(availableJump(state, env({}))).toBe('ground')
   })

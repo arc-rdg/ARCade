@@ -46,8 +46,7 @@ const TEST_BUILD: PlayerBuild = {
 const TOGGLES: Record<string, MechanicId> = {
   Digit1: 'doubleJump',
   Digit2: 'airDash',
-  Digit3: 'wallJump',
-  Digit4: 'hatGlide',
+  Digit3: 'hatGlide',
 }
 
 // Solid blocks as [x, y, width, height], y grows downwards and FLOOR is the ground surface.
@@ -192,14 +191,13 @@ export class TestRoomScene extends Phaser.Scene {
         `pos ${player.position().x.toFixed(1)}, ${player.position().y.toFixed(1)}`,
         `vx ${motor.vx.toFixed(1)}  vy ${motor.vy.toFixed(1)}  facing ${motor.facing}`,
         `grounded ${grounded}  jumpsUsed ${motor.jumpsUsed}  airDashUsed ${motor.airDashUsed}  jumpHeld ${motor.jumpHeld}`,
-        `coyote ${motor.coyoteMs.toFixed(0)}  buffer ${motor.jumpBufferMs.toFixed(0)}  wallLock ${motor.wallLockMs.toFixed(0)}`,
+        `coyote ${motor.coyoteMs.toFixed(0)}  buffer ${motor.jumpBufferMs.toFixed(0)}`,
         `dash ${motor.dashMs.toFixed(0)}  dashCd ${motor.dashCooldownMs.toFixed(0)}  dashIframes ${motor.dashIframesMs.toFixed(0)}`,
         `attack ${attackPhase}  flinch ${flinchMs.toFixed(0)}  hurtIframes ${damageIframesMs.toFixed(0)}  hp ${player.hp()}`,
         `hitStop ${combat.hitStopRemainingMs().toFixed(0)}`,
         flag('doubleJump', '1'),
         flag('airDash', '2'),
-        flag('wallJump', '3'),
-        flag('hatGlide', '4'),
+        flag('hatGlide', '3'),
         'F3 hides this panel. Down + jump drops through light platforms.',
       ].join('\n')
     })
