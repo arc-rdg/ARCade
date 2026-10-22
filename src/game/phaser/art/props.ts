@@ -431,3 +431,60 @@ export function glowTexture(scene: Phaser.Scene): string {
     return GLOW_KEY
   })
 }
+
+export const DUMMY_WIDTH = 30
+export const DUMMY_HEIGHT = 48
+export type DummyMood = 'calm' | 'angry'
+
+const RED = '#e5484d'
+const STRAW = { tint: '#f3dc8a', hatch: '#d1a93a' }
+const BURLAP = { tint: '#e6cfa0', hatch: '#b08a4e' }
+
+// A straw training dummy on a post, standing on the bottom centre of its box. The angry one
+// scowls and wears red.
+export function dummyArt(scene: Phaser.Scene, mood: DummyMood): SpriteRef {
+  const w = DUMMY_WIDTH
+  const h = DUMMY_HEIGHT
+  const mid = w / 2
+  const angry = mood === 'angry'
+  return spriteFrom(scene, {
+    key: `scribble:dummy:${mood}`,
+    width: w,
+    height: h,
+    anchors: { weapon: { x: 0, y: -h * 0.6 }, head: { x: 0, y: -h } },
+    draw(pen) {
+      // The post and its foot.
+      pen.rect(mid - 2, 20, 4, h - 22, { ...wood, weight: 1, rough: 0.5 })
+      pen.poly([[mid - 8, h - 1], [mid - 6, h - 5], [mid + 6, h - 5], [mid + 8, h - 1]], { ...wood, weight: 1, rough: 0.5 })
+      // The crossbar with straw tufts at both ends.
+      pen.line(2.5, 24, w - 2.5, 24, { line: '#8a6238', weight: 2.4, rough: 0.4 })
+      for (const side of [-1, 1]) {
+        const x = mid + side * (mid - 2.5)
+        pen.line(x, 24, x + side * 1.4, 28.5, { line: STRAW.hatch, weight: 0.9, rough: 0.5 })
+        pen.line(x, 24, x + side * 2.6, 27, { line: STRAW.hatch, weight: 0.9, rough: 0.5 })
+        pen.line(x, 24, x - side * 0.4, 29, { line: STRAW.hatch, weight: 0.9, rough: 0.5 })
+      }
+      // The body: a stuffed sack tied at the waist.
+      pen.poly([[mid - 6.5, 19], [mid + 6.5, 19], [mid + 7.5, 32], [mid - 7.5, 32]], { ...(angry ? { tint: '#f4c4c0', hatch: RED } : BURLAP), weight: 1.1, rough: 0.6 })
+      pen.line(mid - 7, 32, mid + 7, 32, { line: '#8a6238', weight: 1.4, rough: 0.4 })
+      // The head: a round sack.
+      pen.ellipse(mid, 11, 14, 15, { ...BURLAP, weight: 1.2, rough: 0.6 })
+      pen.poly([[mid - 3, 3.6], [mid - 1, 0.8], [mid + 1.5, 3.4]], { ...STRAW, weight: 0.8, rough: 0.4 })
+      if (angry) {
+        pen.line(mid - 5, 8, mid - 1.4, 9.6, { line: RED, weight: 1.3, rough: 0.2 })
+        pen.line(mid + 5, 8, mid + 1.4, 9.6, { line: RED, weight: 1.3, rough: 0.2 })
+        pen.dot(mid - 3, 11, 1.1)
+        pen.dot(mid + 3, 11, 1.1)
+        pen.trace([[mid - 3.4, 15.6], [mid - 1.2, 14.4], [mid + 1.2, 14.4], [mid + 3.4, 15.6]], { weight: 1, rough: 0.2 })
+      } else {
+        pen.line(mid - 4.4, 9.8, mid - 1.8, 12.2, { weight: 1, rough: 0.2 })
+        pen.line(mid - 1.8, 9.8, mid - 4.4, 12.2, { weight: 1, rough: 0.2 })
+        pen.line(mid + 1.8, 9.8, mid + 4.4, 12.2, { weight: 1, rough: 0.2 })
+        pen.line(mid + 4.4, 9.8, mid + 1.8, 12.2, { weight: 1, rough: 0.2 })
+        pen.trace([[mid - 3, 15], [mid - 1, 15.8], [mid + 1, 14.8], [mid + 3, 15.6]], { weight: 0.9, rough: 0.2 })
+      }
+      // A patch on the sack.
+      pen.rect(mid - 3.4, 24.5, 5, 4.4, { tint: angry ? '#fde7e5' : '#cfeaf8', weight: 0.7, rough: 0.3 })
+    },
+  })
+}

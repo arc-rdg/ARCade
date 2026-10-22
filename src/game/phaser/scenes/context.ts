@@ -64,6 +64,29 @@ export interface GameplayControl {
   setBindings(bindings: Bindings): void
 }
 
+// What the Training room's scenes ask of each other. The room owns the steps and the world, the HUD
+// scene draws the step card, the pause card and the finish card.
+export interface TutorialControl {
+  setExternalPause(paused: boolean): void
+  setBindings(bindings: Bindings): void
+  // The HUD holds the mouse while the pointer is over one of its widgets, so a click is no attack.
+  captureMouse(captured: boolean): void
+  // The HUD scene just came up and wants the card and the pause state again.
+  refreshHud(): void
+  resume(): void
+  skipStep(): void
+  // From the finish card.
+  keepPracticing(): void
+  startRun(): void
+}
+
+export interface TutorialHud {
+  // What the step card shows. `ticks` is the room's array, valid until the next call.
+  showStep(step: { index: number; total: number; title: string; lines: readonly string[]; ticks: readonly boolean[]; flash: boolean } | null): void
+  showPause(visible: boolean, canSkip: boolean): void
+  showFinish(visible: boolean, canStartRun: boolean): void
+}
+
 export interface HudControl {
   showBanner(title: string, subtitle: string, ms: number): void
   showPause(visible: boolean): void
@@ -71,7 +94,7 @@ export interface HudControl {
 
 const GAMEPLAY_SCENES = [SCENE.stretch, SCENE.boss, SCENE.waystation, SCENE.finalBoss]
 const GAMEPLAY_SCENE_OF = { stretch: SCENE.stretch, boss: SCENE.boss, waystation: SCENE.waystation, finalBoss: SCENE.finalBoss } as const
-const RUN_SCENES = [...GAMEPLAY_SCENES, SCENE.hud, SCENE.levelUp, SCENE.store, SCENE.swate, SCENE.datenkrake, SCENE.traderLoot, SCENE.death, SCENE.victory]
+const RUN_SCENES = [...GAMEPLAY_SCENES, SCENE.tutorial, SCENE.tutorialHud, SCENE.hud, SCENE.levelUp, SCENE.store, SCENE.swate, SCENE.datenkrake, SCENE.traderLoot, SCENE.death, SCENE.victory]
 // Overlays that end with the stage they opened in.
 const STAGE_OVERLAYS = [SCENE.levelUp, SCENE.store, SCENE.swate, SCENE.datenkrake, SCENE.traderLoot]
 
@@ -86,6 +109,10 @@ export class RunContext {
   active: ActiveFight | null = null
   gameplay: GameplayControl | null = null
   hud: HudControl | null = null
+  tutorial: TutorialControl | null = null
+  tutorialHud: TutorialHud | null = null
+  // The run the Training room's finish card can start. Null offers none.
+  tutorialPlan: RunPlan | null = null
   externalPause = false
   // Which mouse cursor the screen shows. The scenes report what changed.
   readonly cursors = new CursorDirector()
@@ -121,6 +148,16 @@ export class RunContext {
     this.director.start()
   }
 
+  // The Training room in place of a run: no director, no HUD scene.
+  startTutorial(plan: RunPlan | null): void {
+    if (!this.game) return
+    this.stopRun()
+    this.tutorialPlan = plan
+    this.sceneOp('start', SCENE.tutorial)
+    this.sceneOp('start', SCENE.tutorialHud)
+    this.emit({ type: 'tutorialStarted' })
+  }
+
   stopRun(): void {
     const scenes = this.game?.scene
     if (!scenes) return
@@ -147,11 +184,13 @@ export class RunContext {
     this.bindings = bindings
     this.bindingsVersion++
     this.gameplay?.setBindings(bindings)
+    this.tutorial?.setBindings(bindings)
   }
 
   setExternalPause(paused: boolean): void {
     this.externalPause = paused
     this.gameplay?.setExternalPause(paused)
+    this.tutorial?.setExternalPause(paused)
     this.emit({ type: 'paused', paused })
   }
 

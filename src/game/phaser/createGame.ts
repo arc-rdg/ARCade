@@ -17,6 +17,8 @@ import { TraderLootScene } from './scenes/TraderLootScene'
 import { StretchScene } from './scenes/StretchScene'
 import { VictoryScene } from './scenes/VictoryScene'
 import { WaystationScene } from './scenes/WaystationScene'
+import { TutorialHudScene } from './tutorial/TutorialHudScene'
+import { TutorialScene } from './tutorial/TutorialScene'
 
 // Phaser 4.2.1 never calls WEBGL_lose_context, and every Start run from the menu creates a new game.
 // Without this the destroyed games keep their GL contexts until the browser reclaims them.
@@ -72,6 +74,8 @@ export const createGame: CreateGame = (parent, { bindings }) => {
     new TraderLootScene(ctx),
     new DeathScene(ctx),
     new VictoryScene(ctx),
+    new TutorialScene(ctx),
+    new TutorialHudScene(ctx),
   ]
   const game = new Phaser.Game(baseGameConfig(parent, scenes))
   ctx.attach(game, parent)
@@ -82,6 +86,10 @@ export const createGame: CreateGame = (parent, { bindings }) => {
       switch (command.type) {
         case 'start':
           ctx.startRun(command.plan)
+          focus()
+          break
+        case 'startTutorial':
+          ctx.startTutorial(command.plan)
           focus()
           break
         case 'pause':

@@ -61,6 +61,7 @@ export interface PlayerDeps {
   hits?: { iframesMs: number; poise(hit: HitEvent): boolean }
 }
 
+// The same object on every call: read it, do not keep it.
 export interface PlayerDebugState {
   motor: Readonly<MotorState>
   grounded: boolean
@@ -590,6 +591,8 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
   world.on('worldstep', onStep)
   scene.events.on('postupdate', onRender)
 
+  // One object, refreshed on every call, so a scene may read it each step without allocating.
+  const debug: PlayerDebugState = { motor, grounded: false, attackPhase: 'idle', flinchMs: 0, damageIframesMs: 0 }
   const handle: Player = {
     id: deps.identity?.id ?? 'player',
     team: deps.identity?.team ?? 'player',
@@ -728,7 +731,13 @@ export function createPlayer(scene: Phaser.Scene, deps: PlayerDeps, x: number, y
       carriedPressed.clear()
       carriedReleased.clear()
     },
-    debugState: () => ({ motor, grounded, attackPhase: attacks.phase(), flinchMs, damageIframesMs }),
+    debugState() {
+      debug.grounded = grounded
+      debug.attackPhase = attacks.phase()
+      debug.flinchMs = flinchMs
+      debug.damageIframesMs = damageIframesMs
+      return debug
+    },
     destroy() {
       if (destroyed) return
       destroyed = true
